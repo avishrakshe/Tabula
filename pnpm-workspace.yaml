@@ -3,4 +3,8 @@ packages:
   - "packages/*"
   - "scripts"
 allowBuilds:
+  # optional native accelerators pulled in by @solana/web3.js; the pure-JS fallbacks are fine
+  bigint-buffer: false
+  bufferutil: false
   esbuild: true
+  utf-8-validate: false

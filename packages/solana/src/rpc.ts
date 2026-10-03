@@ -195,6 +195,17 @@ function describeError(err: unknown): string {
   return String(err)
 }
 
+const CLOCK_SYSVAR = 'SysvarC1ock11111111111111111111111111111111' as Address
+
+/** The cluster's own unix time (Clock sysvar), which on surfnet/devnet can drift from wall clock. */
+export async function clusterUnixTime(rpc: SolanaRpc): Promise<bigint> {
+  const { value } = await rpc.getAccountInfo(CLOCK_SYSVAR, { encoding: 'base64' }).send()
+  if (!value) throw new Error('Clock sysvar not found')
+  const bytes = Buffer.from(value.data[0], 'base64')
+  // Clock { slot u64, epoch_start_timestamp i64, epoch u64, leader_schedule_epoch u64, unix_timestamp i64 }
+  return bytes.readBigInt64LE(32)
+}
+
 export function bigintReplacer(_key: string, value: unknown): unknown {
   return typeof value === 'bigint' ? value.toString() : value
 }

@@ -133,6 +133,24 @@ Confirmed within the hour, so the Squads-spending-limit fallback is not forced.
   into the agent wallet before `open`/`topUp`, and sweeps refunds back to the treasury. Even if the policy
   engine fails, an agent can never pull more than its delegation.
 - Fallback still available: Squads v4 spending limits (`@sqds/multisig@2.1.4`, which uses web3.js v1).
+- **Proven by the ceiling spike** (`pnpm tsx scripts/spike-ceiling.ts`, sandbox, 2026-10-04):
+  - Created a threshold-1 Squads v4 multisig and funded its vault with 100 USDC.
+  - Vault transaction #1 ran `initSubscriptionAuthority` with the vault PDA as owner, via Squads CPI.
+  - Vault transaction #2 ran `createRecurringDelegation`: $2.00 per 86,400 s to an agent wallet.
+  - The agent pulled $1.50 with `transferRecurring`. A further $0.60 was rejected by the program with
+    `AmountExceedsPeriodLimit (400)`.
+- **The deployed program is older than the repo's HEAD** (`56de552`, 2026-10-02). Two HEAD features are
+  rejected onchain:
+  - The `UNKNOWN_INIT_ID` same-slot sentinel → `StaleSubscriptionAuthority (136)`. Fix: init the
+    authority in one transaction, read its real `init_id` (the slot it was created in) from the account,
+    and pass that.
+  - `start_ts = 0` ("start on landing") → `RecurringDelegationStartTimeInPast (404)`. Fix: start a few
+    seconds ahead of the cluster's Clock sysvar (`clusterUnixTime`), then wait for it before pulling.
+- The `@solana/subscriptions` 0.5.0 instruction builders and account decoders work with `@solana/kit` 6.10
+  at runtime. `@solana/mpp` 0.11 already depends on it the same way.
+- The Squads SDK's `rpc.*` helpers do not wait for confirmation. Tabula builds with `squads.instructions.*`,
+  converts the web3.js instructions to kit instructions, and confirms each step itself
+  (`packages/solana/src/squads.ts`).
 
 ## Squads v4
 
