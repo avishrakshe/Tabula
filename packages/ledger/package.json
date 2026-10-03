@@ -1,0 +1,30 @@
+{
+  "name": "@tabula/ledger",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ledger schema (Drizzle on node:sqlite), canonical rows, Merkle batching, reconciliation and vendor scorecards.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./merkle": "./src/merkle.ts",
+    "./canonical": "./src/canonical.ts",
+    "./reconcile": "./src/reconcile.ts",
+    "./scores": "./src/scores.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0",
+    "drizzle-orm": "0.45.3"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.11",
+    "fast-check": "4.10.2",
+    "vitest": "4.1.11"
+  }
+}
