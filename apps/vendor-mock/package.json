@@ -1,0 +1,27 @@
+{
+  "name": "@tabula/vendor-mock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Demo vendors: the stock @solana/mpp session server selling inference calls, with seeded errors, empties and timeouts.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.3",
+    "@solana/kit": "6.10.0",
+    "@solana/mpp": "file:../../vendor/solana-mpp-0.11.0.tgz",
+    "@tabula/solana": "workspace:*",
+    "hono": "4.13.12",
+    "mppx": "0.8.15"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}
