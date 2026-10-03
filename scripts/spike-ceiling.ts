@@ -1,5 +1,5 @@
-﻿/**
- * Milestone 3 spike â€” the onchain ceiling: a Squads v4 vault funds per-agent allowances from the
+/**
+ * Milestone 3 spike — the onchain ceiling: a Squads v4 vault funds per-agent allowances from the
  * Subscriptions & Allowances program. Proves on the sandbox:
  *
  *   1. create a threshold-1 Squads multisig (Tabula admin is the member) and fund its vault

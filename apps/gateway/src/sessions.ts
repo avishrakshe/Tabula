@@ -1,4 +1,4 @@
-﻿import { type Address, address, type KeyPairSigner } from '@solana/kit'
+import { type Address, address, type KeyPairSigner } from '@solana/kit'
 import {
   buildOpenPaymentChannelTransaction,
   DEFAULT_SESSION_EXPIRES_AT,
@@ -983,8 +983,8 @@ export class SessionManager {
 
   /**
    * Kill path: (1) the signer refuses this agent's keys, (2) status persisted and broadcast,
-   * (3) every open channel is closed â€” cooperatively at the last signed voucher if the vendor
-   * answers in time, otherwise forced onchain â€” and the unspent escrow comes back.
+   * (3) every open channel is closed — cooperatively at the last signed voucher if the vendor
+   * answers in time, otherwise forced onchain — and the unspent escrow comes back.
    */
   async kill(
     agentId: string,
