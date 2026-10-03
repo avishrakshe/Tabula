@@ -5,6 +5,7 @@ CREATE TABLE `agents` (
 	`department` text NOT NULL,
 	`api_key_hash` text NOT NULL,
 	`payer_pubkey` text NOT NULL,
+	`voucher_pubkey` text NOT NULL,
 	`allowance_pubkey` text,
 	`allowance_amount` integer,
 	`daily_budget` integer NOT NULL,
@@ -47,6 +48,8 @@ CREATE TABLE `channels` (
 	`agent_id` text NOT NULL,
 	`vendor_id` text NOT NULL,
 	`task_id` text,
+	`endpoint` text NOT NULL,
+	`price_per_call` integer NOT NULL,
 	`payer_pubkey` text NOT NULL,
 	`authorized_signer` text NOT NULL,
 	`deposit` integer NOT NULL,
@@ -119,6 +122,7 @@ CREATE TABLE `vendors` (
 CREATE TABLE `vouchers` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`idempotency_key` text NOT NULL,
+	`request_id` text,
 	`channel_id` text NOT NULL,
 	`agent_id` text NOT NULL,
 	`task_id` text NOT NULL,
@@ -138,6 +142,7 @@ CREATE TABLE `vouchers` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `vouchers_idem_idx` ON `vouchers` (`idempotency_key`);--> statement-breakpoint
+CREATE UNIQUE INDEX `vouchers_request_idx` ON `vouchers` (`channel_id`,`request_id`);--> statement-breakpoint
 CREATE INDEX `vouchers_agent_ts_idx` ON `vouchers` (`agent_id`,`ts`);--> statement-breakpoint
 CREATE INDEX `vouchers_channel_idx` ON `vouchers` (`channel_id`);--> statement-breakpoint
 CREATE INDEX `vouchers_batch_idx` ON `vouchers` (`batch_id`);

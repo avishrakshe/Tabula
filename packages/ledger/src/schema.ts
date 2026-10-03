@@ -15,6 +15,8 @@ export const agents = sqliteTable('agents', {
   apiKeyHash: text('api_key_hash').notNull(),
   /** Agent funding wallet. Tabula holds this key; the agent process never sees it. */
   payerPubkey: text('payer_pubkey').notNull(),
+  /** Channel `authorized_signer` for this agent's channels. Tabula holds this key too. */
+  voucherPubkey: text('voucher_pubkey').notNull(),
   /** Onchain allowance (Subscriptions-program delegation PDA) that caps what the payer can pull. */
   allowancePubkey: text('allowance_pubkey'),
   allowanceAmount: integer('allowance_amount'),
@@ -78,6 +80,10 @@ export const channels = sqliteTable(
     agentId: text('agent_id').notNull(),
     vendorId: text('vendor_id').notNull(),
     taskId: text('task_id'),
+    /** Endpoint the session pays (registry default, or an override the agent asked for). */
+    endpoint: text('endpoint').notNull(),
+    /** Amount per call from the verified 402 challenge. */
+    pricePerCall: integer('price_per_call').notNull(),
     payerPubkey: text('payer_pubkey').notNull(),
     authorizedSigner: text('authorized_signer').notNull(),
     deposit: integer('deposit').notNull(),
@@ -107,6 +113,8 @@ export const vouchers = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     /** session id + cumulative amount: retries of the same voucher collapse to one row. */
     idempotencyKey: text('idempotency_key').notNull(),
+    /** Optional agent-supplied request id; a retried request returns the original result. */
+    requestId: text('request_id'),
     channelId: text('channel_id').notNull(),
     agentId: text('agent_id').notNull(),
     taskId: text('task_id').notNull(),
@@ -127,6 +135,7 @@ export const vouchers = sqliteTable(
   },
   (t) => [
     uniqueIndex('vouchers_idem_idx').on(t.idempotencyKey),
+    uniqueIndex('vouchers_request_idx').on(t.channelId, t.requestId),
     index('vouchers_agent_ts_idx').on(t.agentId, t.ts),
     index('vouchers_channel_idx').on(t.channelId),
     index('vouchers_batch_idx').on(t.batchId),

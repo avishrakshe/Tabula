@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5101f19c-e02f-4754-a9a3-05ac12c3d4d1",
+  "id": "ae28d052-604e-495a-92ad-1eff1a5998b2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "agents": {
@@ -44,6 +44,13 @@
         },
         "payer_pubkey": {
           "name": "payer_pubkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "voucher_pubkey": {
+          "name": "voucher_pubkey",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -310,6 +317,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "price_per_call": {
+          "name": "price_per_call",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
         "payer_pubkey": {
@@ -762,6 +783,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "channel_id": {
           "name": "channel_id",
           "type": "text",
@@ -879,6 +907,11 @@
         "vouchers_idem_idx": {
           "name": "vouchers_idem_idx",
           "columns": ["idempotency_key"],
+          "isUnique": true
+        },
+        "vouchers_request_idx": {
+          "name": "vouchers_request_idx",
+          "columns": ["channel_id", "request_id"],
           "isUnique": true
         },
         "vouchers_agent_ts_idx": {
