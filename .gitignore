@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# secrets — never commit
+.env
+.env.*
+!.env.example
+keys/
+keys/*.json
+*.keypair.json
+id.json
+
+# build output
+.next/
+dist/
+out/
+build/
+target/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# local data
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# vendored upstream sources cloned for reading (see docs/FACTS.md)
+.vendor/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# vercel
+.vercel

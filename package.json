@@ -1,0 +1,27 @@
+{
+  "name": "tabula",
+  "private": true,
+  "description": "Spend control and treasury for AI agents that pay through Solana payment channels.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" build",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "spike": "tsx scripts/spike-channel.ts",
+    "setup": "tsx scripts/setup-devnet.ts",
+    "demo": "tsx scripts/demo.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
+  }
+}
