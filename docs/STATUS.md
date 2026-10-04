@@ -8,7 +8,7 @@ _Last updated 2026-10-04._
 | M2 Gateway, policy, verification | ✅ done (site skeleton still open) | `m2-gateway` |
 | M3 Kill and float ‖ 3D hero | ✅ kill/float done (3D hero not started) | `m3-kill-float` |
 | M4 Ledger, receipts, reconciliation, scorecards | ✅ done (plus `pnpm demo`) | `m4-ledger` |
-| M5 Dashboard | not started | |
+| M5 Dashboard | code complete; visual check and replay fixture pending (see below) | |
 
 ## What works (run, not assumed)
 
@@ -121,6 +121,31 @@ _Last updated 2026-10-04._
   - 247 vouchers signed, 1 blocked.
 - Outputs: `data/demo-ledger.csv`, `data/demo-events.jsonl` (replay log), `data/demo.sqlite`.
 
+### M5: dashboard (`apps/web`, `/app`): code complete, not yet looked at in a browser
+
+- **Pages:**
+  - **Overview:** KPIs, cumulative spend by agent, live voucher feed, onchain activity.
+  - **Agents:** budget meters, onchain allowance, stop/resume. The agent detail page charts trailing-60s spend
+    against the velocity limit and has tasks, a versioned policy editor and a timeline.
+  - **Channels & float:** escrow by vendor, plus a "Sweep idle" action.
+  - **Ledger:** filterable vouchers. A batch's "Verify" recomputes the Merkle root in the browser and compares
+    it with the onchain memo.
+  - **Reconciliation:** badges and CSV export.
+  - **Vendors:** scorecards, cheaper-option hints, blocked payment requests, registry.
+  - **Policies.**
+- **Data:** live mode uses the gateway API and SSE stream with an admin token (the demo login). Without a
+  gateway it replays `public/replay/demo.json`.
+- **Design:** Paymark-style tokens; `sever` and `matched` are reserved and always paired with an icon and a
+  word. Light by default, with a dark mode. The chart palette passed the dataviz validator on `#fff` and
+  `#141414`, and every chart has a table view.
+- **Verified:** `tsc` clean, Biome clean, and `next build` passed (it ran before the last small lint fixes).
+- **Pending:** `pnpm demo --hold` (which writes the replay fixture) and `pnpm --filter @tabula/web dev` were
+  both stopped by Claude Code when the machine ran low on memory. So:
+  - the replay fixture has not been generated yet;
+  - the dashboard has not been checked visually;
+  - the interrupted demo left a few open sandbox channels (sandbox USDC only), recoverable with the idle
+    sweep.
+
 ## What is mocked or simplified
 
 - **Funding.** With `pnpm setup` the money comes from a real Squads vault through real onchain allowances
@@ -135,8 +160,8 @@ _Last updated 2026-10-04._
 
 ## Next
 
-1. **M5 dashboard** (`apps/web`, `/app`): Overview, Agents, Vendors, Ledger and Reconciliation, live over
-   SSE; Channels and Policies simpler.
-2. **Replay:** record API snapshots during `pnpm demo` so the hosted dashboard can replay the run without a
-   gateway.
-3. **Site:** the marketing page and the 3D hero (`/`, `/hero-embed`).
+1. Re-run `pnpm demo --hold` (writes `apps/web/public/replay/demo.json`) together with the web dev server,
+   and check every dashboard page in a browser, live and in replay.
+2. **Site:** the marketing page and the 3D hero (`/`, `/hero-embed`), styled after studying the Paymark
+   reference in the browser.
+3. **M6/M7:** freeze, `docs/PITCH.md`, README, Vercel deploy, demo video.
