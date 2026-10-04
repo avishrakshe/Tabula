@@ -34,6 +34,8 @@ const VoucherBody = z.object({
   unitPrice: amount,
   prompt: z.string().max(2000).optional(),
   requestId: z.string().max(128).optional(),
+  taskId: z.string().min(1).max(128).optional(),
+  taskLabel: z.string().max(200).optional(),
 })
 
 const KillBody = z.object({ agentId: z.string().min(1), reason: z.string().max(500).optional() })
@@ -193,7 +195,32 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
 
   app.get('/v1/agents', { preHandler: requireAdmin }, async () => {
     const agents = await gw.store.agents()
-    return agents.map(({ apiKeyHash: _hidden, ...a }) => ({ ...a, status: gw.policy.agentStatus(a.id) }))
+    return Promise.all(
+      agents.map(async ({ apiKeyHash: _hidden, ...a }) => {
+        const allowance = await gw.treasury.allowance(a.id).catch(() => null)
+        return {
+          ...a,
+          status: gw.policy.agentStatus(a.id),
+          allowance: allowance
+            ? {
+                address: allowance.address,
+                perPeriod: allowance.perPeriod.toString(),
+                remaining: allowance.remaining.toString(),
+                periodS: allowance.periodS.toString(),
+              }
+            : null,
+        }
+      }),
+    )
+  })
+
+  app.get('/v1/float', { preHandler: requireAdmin }, async () => gw.sessions.floatView())
+
+  app.post('/v1/float/sweep', { preHandler: requireAdmin }, async (req) => {
+    const { idleSeconds } = z
+      .object({ idleSeconds: z.number().nonnegative().optional() })
+      .parse(req.body ?? {})
+    return gw.sessions.sweepIdle(idleSeconds === undefined ? undefined : idleSeconds * 1000)
   })
 
   app.get('/v1/vendors', { preHandler: requireAdmin }, async () => gw.store.vendors())

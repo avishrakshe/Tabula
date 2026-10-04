@@ -62,7 +62,7 @@ describe.skipIf(!reachable)('gateway on the Payment Sandbox', () => {
     expect(res.status, JSON.stringify(res.json)).toBe(201)
     research = res.json
     expect(research.pricePerCall).toBe('1000')
-    expect(research.unitsPerCall).toBe(500)
+    expect(research.unitsPerCall).toBe(250)
     const view = await fetchChannelView(h.gw.rpc, address(research.channel))
     const keys = await h.gw.custody.agentKeys('research-01')
     expect(view.statusName).toBe('open')
@@ -90,6 +90,8 @@ describe.skipIf(!reachable)('gateway on the Payment Sandbox', () => {
         unitPrice: research.unitPrice,
         prompt: `paper ${i}`,
         requestId: `r-${i}`,
+        // one channel serves many tasks: 10 papers of 50 calls each
+        taskId: `paper-${Math.ceil(i / 50)}`,
       })
       expect(res.status, JSON.stringify(res.json)).toBe(200)
       expect(res.json.cumulative).toBe(String(i * 1000))
@@ -108,6 +110,12 @@ describe.skipIf(!reachable)('gateway on the Payment Sandbox', () => {
     expect(rows).toHaveLength(500)
     expect(rows.every((r) => r.verdict === 'signed' && r.signature && r.responseStatus)).toBe(true)
     expect(rows.reduce((a, r) => a + r.delta, 0)).toBe(500_000)
+    expect(new Set(rows.map((r) => r.taskId)).size).toBe(10)
+    const tasks = await h.gw.ledger.db
+      .select()
+      .from(schema.tasks)
+      .where(eq(schema.tasks.agentId, 'research-01'))
+    expect(tasks.filter((t) => t.id.startsWith('paper-'))).toHaveLength(10)
     // the escrow is now used up: the next voucher is refused (top-up needed), not signed
     const over = await h.call('research-01', 'POST', `/v1/sessions/${research.sessionId}/voucher`, {
       units: research.unitsPerCall,
@@ -221,12 +229,14 @@ describe.skipIf(!reachable)('gateway on the Payment Sandbox', () => {
           rule: 'VELOCITY',
           action: 'kill_and_close',
         })
-        expect(res.json.message).toMatch(/^Stopped paying rogue-01: spent \$0\.021 in 60s \(limit \$0\.02\)$/)
+        expect(res.json.message).toMatch(
+          /^Stopped paying rogue-01: spent \$0\.02125 in 60s \(limit \$0\.02\)$/,
+        )
         break
       }
       expect(res.status, JSON.stringify(res.json)).toBe(200)
     }
-    expect(blockedAt).toBe(14) // 13 x $0.0015 = $0.0195 fits; the 14th would reach $0.021
+    expect(blockedAt).toBe(17) // 16 x $0.00125 = $0.02 fits exactly; the 17th would reach $0.02125
     // nothing more is ever signed for this agent
     const after = await h.call('rogue-01', 'POST', `/v1/sessions/${s.sessionId}/voucher`, {
       units: s.unitsPerCall,
@@ -241,11 +251,11 @@ describe.skipIf(!reachable)('gateway on the Payment Sandbox', () => {
     expect(blocked[0]).toMatchObject({
       ruleTriggered: 'VELOCITY',
       signature: null,
-      cumulativeAmount: 14 * 1500,
+      cumulativeAmount: 17 * 1250,
     })
     const signed = rows.filter((r) => r.verdict === 'signed')
-    expect(signed).toHaveLength(13)
-    expect(Math.max(...signed.map((r) => r.cumulativeAmount))).toBe(13 * 1500)
+    expect(signed).toHaveLength(16)
+    expect(Math.max(...signed.map((r) => r.cumulativeAmount))).toBe(16 * 1250)
     // the kill path closes the channel at the last signed voucher and the remainder comes back
     let channel = await h.gw.store.channel(s.sessionId)
     for (let i = 0; i < 60 && channel?.status !== 'refunded' && channel?.status !== 'sealed'; i++) {
@@ -253,10 +263,10 @@ describe.skipIf(!reachable)('gateway on the Payment Sandbox', () => {
       channel = await h.gw.store.channel(s.sessionId)
     }
     expect(channel?.status).toBe('refunded')
-    expect(channel?.settledAmount).toBe(13 * 1500)
-    expect(channel?.refundedAmount).toBe(channel!.deposit - 13 * 1500)
+    expect(channel?.settledAmount).toBe(16 * 1250)
+    expect(channel?.refundedAmount).toBe(channel!.deposit - 16 * 1250)
     const view = await fetchChannelView(h.gw.rpc, address(s.channel))
-    expect(view.settled === 13n * 1500n || view.statusName === 'closed').toBe(true)
+    expect(view.settled === 16n * 1250n || view.statusName === 'closed').toBe(true)
     expect((await h.gw.store.agent('rogue-01'))?.status).toBe('killed')
     const events = await h.gw.ledger.db
       .select()

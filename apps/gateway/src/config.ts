@@ -20,8 +20,12 @@ export interface GatewayConfig {
   readonly anchorEvery: number
   /** ...or every this many ms, whichever comes first. 0 disables anchoring. */
   readonly anchorIntervalMs: number
-  /** Close channels idle longer than this (float manager). 0 disables the sweeper. */
+  /** How often the float manager looks for idle channels and wallets. 0 disables the automatic sweeper. */
   readonly idleSweepMs: number
+  /** A channel (or agent wallet) with no voucher for this long counts as idle. */
+  readonly idleAfterMs: number
+  /** Treasury state written by `pnpm setup` (Squads vault + allowances). Absent -> sandbox faucet. */
+  readonly treasuryFile: string
 }
 
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
@@ -42,5 +46,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     anchorEvery: num('TABULA_ANCHOR_EVERY', 50),
     anchorIntervalMs: num('TABULA_ANCHOR_INTERVAL_MS', 30_000),
     idleSweepMs: num('TABULA_IDLE_SWEEP_MS', 0),
+    idleAfterMs: num('TABULA_IDLE_AFTER_MS', 5 * 60_000),
+    treasuryFile: env.TABULA_TREASURY_FILE || join(keysDir(), '..', 'data', 'treasury.json'),
   }
 }

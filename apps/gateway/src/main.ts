@@ -11,7 +11,16 @@ console.log(
 )
 console.log(`[gateway] treasury=${gw.treasury.kind}  restored ${gw.sessions.sessions().length} session(s)`)
 
+// float manager: close idle channels and sweep idle wallets back to the treasury vault
+const sweeper =
+  config.idleSweepMs > 0
+    ? setInterval(() => {
+        gw.sessions.sweepIdle().catch((err) => console.error('[gateway] idle sweep failed:', err))
+      }, config.idleSweepMs)
+    : null
+
 const shutdown = async () => {
+  if (sweeper) clearInterval(sweeper)
   await app.close()
   await gw.close()
   process.exit(0)

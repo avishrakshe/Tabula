@@ -1,13 +1,21 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { type ClusterConfig, resolveCluster, SANDBOX_RPC_URL, setSolBalance } from '@tabula/solana'
+import {
+  type ClusterConfig,
+  createRpc,
+  loadOrCreateKeypair,
+  resolveCluster,
+  SANDBOX_RPC_URL,
+  setSolBalance,
+} from '@tabula/solana'
 import { demoVendor, type RunningVendor, startVendor } from '@tabula/vendor-mock'
 import type { FastifyInstance } from 'fastify'
 import { buildApp } from '../../src/app.js'
 import { type AgentSpec, registerAgent, registerVendor } from '../../src/bootstrap.js'
 import type { GatewayConfig } from '../../src/config.js'
 import { createGateway, type Gateway } from '../../src/gateway.js'
+import { ensureAllowances, ensureTreasury } from '../../src/treasury-setup.js'
 
 export interface Harness {
   readonly cluster: ClusterConfig
@@ -29,6 +37,8 @@ export async function startHarness(opts: {
   globalPolicy?: Record<string, unknown>
   vendorOverrides?: Record<string, { noLatency?: boolean; timeoutHoldMs?: number }>
   gateway?: Partial<GatewayConfig>
+  /** 'ceiling' = real Squads vault + per-agent Subscriptions allowance (daily budget); default sandbox faucet. */
+  treasury?: 'faucet' | 'ceiling'
 }): Promise<Harness> {
   const keysDir = mkdtempSync(join(tmpdir(), 'tabula-it-keys-'))
   process.env.TABULA_KEYS_DIR = keysDir
@@ -58,7 +68,29 @@ export async function startHarness(opts: {
     anchorEvery: 50,
     anchorIntervalMs: 0,
     idleSweepMs: 0,
+    idleAfterMs: 5 * 60_000,
+    treasuryFile: join(keysDir, 'treasury.json'),
     ...opts.gateway,
+  }
+  if (opts.treasury === 'ceiling') {
+    const admin = await loadOrCreateKeypair('tabula-admin')
+    await setSolBalance(cluster.rpcUrl, admin.address, 20_000_000_000n)
+    const rpc = createRpc(cluster.rpcUrl)
+    const state = await ensureTreasury({
+      rpc,
+      cluster,
+      mint,
+      admin,
+      createKey: await loadOrCreateKeypair('treasury-createkey'),
+      file: config.treasuryFile,
+      fundVault: 100_000_000n,
+    })
+    const specs = []
+    for (const a of opts.agents) {
+      const payer = await loadOrCreateKeypair(`agent-${a.id}-payer`)
+      specs.push({ agentId: a.id, payer: payer.address, amountPerPeriod: BigInt(a.dailyBudget) })
+    }
+    await ensureAllowances({ rpc, cluster, mint, admin, file: config.treasuryFile, state, specs })
   }
   const gw = await createGateway(config)
   await setSolBalance(cluster.rpcUrl, gw.custody.operator.address, 10_000_000_000n)

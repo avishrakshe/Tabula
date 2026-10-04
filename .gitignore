@@ -22,7 +22,8 @@ coverage/
 *.tsbuildinfo
 next-env.d.ts
 
-# local data
+# local data (ledger DB, setup state)
+data/
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal

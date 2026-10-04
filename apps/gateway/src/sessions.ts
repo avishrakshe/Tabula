@@ -12,6 +12,7 @@ import {
   buildDistribute,
   buildRequestClose,
   buildSeal,
+  clusterUnixTime,
   createAtaIdempotentIx,
   explorerAddressUrl,
   explorerTxUrl,
@@ -34,7 +35,7 @@ import {
 } from './mpp-client.js'
 import type { PolicyService } from './policy-service.js'
 import type { Store } from './store.js'
-import type { Treasury } from './treasury.js'
+import { CeilingError, type FundingResult, type Treasury } from './treasury.js'
 import { KeyedMutex, newId, sleep, toNum, withTimeout } from './util.js'
 
 export class GatewayError extends Error {
@@ -54,6 +55,9 @@ export interface LiveSession {
   readonly agentId: string
   readonly vendorId: string
   readonly taskId: string
+  readonly taskType: string
+  /** Task ids already registered in the ledger for this session. */
+  readonly knownTasks: Set<string>
   readonly endpoint: string
   readonly channel: Address
   readonly pricePerCall: bigint
@@ -81,6 +85,9 @@ export interface VoucherRequestBody {
   readonly unitPrice: bigint
   readonly prompt?: string
   readonly requestId?: string
+  /** Bill this call to a different task than the session's (one channel can serve many tasks). */
+  readonly taskId?: string
+  readonly taskLabel?: string
 }
 
 export interface VoucherResult {
@@ -169,6 +176,8 @@ export class SessionManager {
         agentId: row.agentId,
         vendorId: row.vendorId,
         taskId: row.taskId ?? 'unknown',
+        taskType: vendor?.taskType ?? 'general',
+        knownTasks: new Set(row.taskId ? [row.taskId] : []),
         endpoint: row.endpoint,
         channel: address(row.channelPda),
         pricePerCall: BigInt(row.pricePerCall),
@@ -245,12 +254,24 @@ export class SessionManager {
     })
     const deposit = await this.#sizeDeposit(agent.id, req, pricePerCall, policy.perTaskBudget)
 
-    const funding = await this.treasury.ensureFunded(agent.id, keys.payer, deposit)
+    let funding: FundingResult
+    try {
+      funding = await this.treasury.ensureFunded(agent.id, keys.payer, deposit)
+    } catch (err) {
+      if (!(err instanceof CeilingError)) throw err
+      await this.bus.emit({
+        type: 'challenge_blocked',
+        agentId: agent.id,
+        message: `Did not open a channel for ${agent.id}: ${err.message}`,
+        data: { rule: 'ONCHAIN_CEILING', remaining: err.remaining, deposit },
+      })
+      throw new GatewayError(402, 'ONCHAIN_CEILING', err.message, { remaining: err.remaining.toString() })
+    }
     if (funding.moved > 0n) {
       await this.bus.emit({
         type: funding.source === 'sandbox-faucet' ? 'faucet' : 'top_up',
         agentId: agent.id,
-        message: `Funded ${agent.id}'s wallet with ${formatUsd(funding.moved)} from ${funding.source}`,
+        message: `Pulled ${formatUsd(funding.moved)} into ${agent.id}'s wallet from ${funding.source}`,
         txSignature: funding.txSignature ?? null,
         explorerUrl: funding.txSignature ? explorerTxUrl(this.config.cluster, funding.txSignature) : null,
         data: { amount: funding.moved },
@@ -358,6 +379,8 @@ export class SessionManager {
       agentId: agent.id,
       vendorId: req.vendorId,
       taskId: req.taskId,
+      taskType,
+      knownTasks: new Set([req.taskId]),
       endpoint: endpoint!,
       channel,
       pricePerCall,
@@ -399,13 +422,25 @@ export class SessionManager {
     pricePerCall: bigint,
     taskBudget: bigint | null,
   ): Promise<bigint> {
-    const candidates: { label: string; value: bigint }[] = [
-      { label: 'default (500 calls)', value: pricePerCall * 500n },
-    ]
+    // deposit = min(remaining onchain allowance, per-task budget, p95 of this agent's past sessions x 1.2)
+    const candidates: { label: string; value: bigint }[] = []
     if (req.deposit) candidates.push({ label: 'requested', value: req.deposit })
     if (taskBudget !== null) candidates.push({ label: 'per-task budget', value: taskBudget })
     const ceiling = await this.treasury.remainingCeiling(agentId)
-    if (ceiling !== null) candidates.push({ label: 'remaining onchain allowance', value: ceiling })
+    if (ceiling !== null) candidates.push({ label: 'available under the onchain allowance', value: ceiling })
+    const past = (await this.store.channels(['refunded', 'sealed']))
+      .filter((c) => c.agentId === agentId && c.signedCumulative > 0)
+      .map((c) => c.signedCumulative)
+    if (past.length >= 3) {
+      const sorted = [...past].sort((a, b) => a - b)
+      const p95 = sorted[Math.ceil(0.95 * sorted.length) - 1]!
+      candidates.push({
+        label: `p95 of ${past.length} past sessions x 1.2`,
+        value: (BigInt(p95) * 12n) / 10n,
+      })
+    } else {
+      candidates.push({ label: 'default (500 calls; no session history yet)', value: pricePerCall * 500n })
+    }
     let chosen = candidates[0]!
     for (const c of candidates) if (c.value < chosen.value) chosen = c
     const deposit = chosen.value < pricePerCall ? pricePerCall : chosen.value
@@ -551,21 +586,34 @@ export class SessionManager {
     if (s.status !== 'open')
       throw new GatewayError(409, 'SESSION_CLOSED', `session ${sessionId} is ${s.status}`)
 
+    const taskId = body.taskId ?? s.taskId
+    if (!s.knownTasks.has(taskId)) {
+      const policy = this.policy.effectivePolicy(agentId, s.vendorId)
+      await this.store.ensureTask({
+        id: taskId,
+        agentId,
+        label: body.taskLabel ?? taskId,
+        taskType: s.taskType,
+        budget: policy.perTaskBudget === null ? null : toNum(policy.perTaskBudget),
+      })
+      s.knownTasks.add(taskId)
+    }
+
     // evaluate + sign under the agent lock so concurrent sessions of one agent see each other's spend
     const signedPhase = await this.#agentLock.run(agentId, async () => {
-      const ceiling = await this.treasury.remainingCeiling(agentId)
-      const channelCeiling = ceiling === null ? null : s.signedCumulative + ceiling
+      // The onchain ceiling binds when escrow is funded (deposit <= pulled <= allowance), and the
+      // program caps every voucher at the deposit, so the voucher path needs no RPC round trip.
       const { decision, approval } = this.policy.authorize({
         agentId,
         sessionId,
         channelId: s.channel,
         vendorId: s.vendorId,
-        taskId: s.taskId,
+        taskId,
         units: body.units,
         unitPrice: body.unitPrice,
         deposit: s.deposit,
         signedCumulative: s.signedCumulative,
-        ceiling: channelCeiling,
+        ceiling: null,
       })
       const now = Date.now()
       if (!approval) {
@@ -574,7 +622,7 @@ export class SessionManager {
           requestId: body.requestId ?? null,
           channelId: sessionId,
           agentId,
-          taskId: s.taskId,
+          taskId,
           vendorId: s.vendorId,
           cumulativeAmount: toNum(decision.newCumulative),
           delta: toNum(decision.delta),
@@ -608,7 +656,7 @@ export class SessionManager {
         requestId: body.requestId ?? null,
         channelId: sessionId,
         agentId,
-        taskId: s.taskId,
+        taskId,
         vendorId: s.vendorId,
         cumulativeAmount: toNum(decision.newCumulative),
         delta: toNum(decision.delta),
@@ -627,7 +675,7 @@ export class SessionManager {
       this.policy.recordSigned(agentId, {
         ts: now,
         amount: decision.delta,
-        taskId: s.taskId,
+        taskId,
         vendorId: s.vendorId,
       })
       return { kind: 'signed' as const, signed, decision, row }
@@ -922,23 +970,28 @@ export class SessionManager {
       view = await fetchChannelView(this.rpc, s.channel)
     }
     if (view.statusName === 'closing') {
-      const graceEnds = Number(view.closureStartedAt) * 1000 + view.gracePeriod * 1000
-      await sleep(Math.max(0, graceEnds - Date.now()) + 1_000)
-      for (let attempt = 0; ; attempt++) {
+      // Wait on the cluster's own clock: shared sandboxes drift far from wall clock (time travel).
+      const graceEnds = view.closureStartedAt + BigInt(view.gracePeriod)
+      const giveUpAt = Date.now() + (view.gracePeriod + 300) * 1_000
+      for (;;) {
         view = await fetchChannelView(this.rpc, s.channel)
-        if (view.statusName !== 'closing') break
-        try {
-          const tx = await sendAndConfirm(this.rpc, {
-            feePayer: operator,
-            instructions: [buildSeal(cluster, s.channel)],
-          })
-          await step('Grace period over: sealed the channel', tx)
-          view = await fetchChannelView(this.rpc, s.channel)
-          break
-        } catch (err) {
-          if (attempt > 30) throw err
-          await sleep(3_000) // cluster clock may lag wall clock; retry until the grace period has passed onchain
+        if (view.statusName !== 'closing') break // the vendor settled+sealed during the grace period
+        if ((await clusterUnixTime(this.rpc)) >= graceEnds) {
+          try {
+            const tx = await sendAndConfirm(this.rpc, {
+              feePayer: operator,
+              instructions: [buildSeal(cluster, s.channel)],
+            })
+            await step('Grace period over: sealed the channel', tx)
+            view = await fetchChannelView(this.rpc, s.channel)
+            break
+          } catch (err) {
+            if (Date.now() > giveUpAt) throw err
+          }
+        } else if (Date.now() > giveUpAt) {
+          throw new Error(`grace period has not ended onchain after ${view.gracePeriod + 300}s of waiting`)
         }
+        await sleep(2_000)
       }
     }
     let distTx: string | null = null
@@ -1017,7 +1070,123 @@ export class SessionManager {
         })
       }
     }
+    // a stopped agent keeps no float: everything refunded goes back to the treasury vault
+    await this.#sweepWallet(agentId, 'agent stopped')
     return results
+  }
+
+  async #sweepWallet(agentId: string, why: string): Promise<bigint> {
+    try {
+      const { payer } = await this.custody.agentKeys(agentId)
+      const r = await this.treasury.sweep(agentId, payer)
+      if (r.amount > 0n) {
+        await this.bus.emit({
+          type: 'sweep',
+          agentId,
+          message: `Swept ${formatUsd(r.amount)} from ${agentId}'s wallet back to the treasury vault (${why})`,
+          txSignature: r.txSignature ?? null,
+          explorerUrl: r.txSignature ? explorerTxUrl(this.config.cluster, r.txSignature) : null,
+          data: { amount: r.amount, destination: r.destination, reason: why },
+        })
+      }
+      return r.amount
+    } catch (err) {
+      await this.bus.emit({
+        type: 'sweep',
+        agentId,
+        message: `Sweeping ${agentId}'s wallet failed: ${(err as Error).message}`,
+      })
+      return 0n
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // float manager
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * Closes channels with no voucher for `idleMs` (refund lands in the agent wallet), then sweeps
+   * the wallets of agents with no open channel back to the vault. Returns what was reclaimed.
+   */
+  async sweepIdle(idleMs: number = this.config.idleAfterMs, now = Date.now()) {
+    const idle = this.sessions().filter(
+      (s) => s.status === 'open' && now - (s.lastVoucherAt ?? s.openedAt) >= idleMs,
+    )
+    const closed: CloseResult[] = []
+    for (const s of idle) {
+      try {
+        closed.push(
+          await this.close(s.id, `idle for ${Math.round((now - (s.lastVoucherAt ?? s.openedAt)) / 1000)}s`),
+        )
+      } catch (err) {
+        await this.bus.emit({
+          type: 'sweep',
+          agentId: s.agentId,
+          channelId: s.id,
+          message: `Closing idle channel ${s.id} failed: ${(err as Error).message}`,
+        })
+      }
+    }
+    const busy = new Set(
+      this.sessions()
+        .filter((s) => s.status !== 'closed')
+        .map((s) => s.agentId),
+    )
+    const swept: { agentId: string; amount: string }[] = []
+    for (const a of await this.store.agents()) {
+      if (busy.has(a.id)) continue
+      const amount = await this.#sweepWallet(a.id, 'idle float')
+      if (amount > 0n) swept.push({ agentId: a.id, amount: amount.toString() })
+    }
+    const reclaimed =
+      closed.reduce((acc, c) => acc + BigInt(c.refunded), 0n) +
+      swept.reduce((acc, s) => acc + BigInt(s.amount), 0n)
+    return {
+      closed,
+      swept,
+      reclaimedFromEscrow: closed.reduce((acc, c) => acc + BigInt(c.refunded), 0n).toString(),
+      reclaimed: reclaimed.toString(),
+    }
+  }
+
+  /** Escrow tied up per open channel and per vendor, plus the treasury side. */
+  async floatView(now = Date.now()) {
+    const open = this.sessions().filter((s) => s.status === 'open')
+    const channels = open.map((s) => ({
+      sessionId: s.id,
+      agentId: s.agentId,
+      vendorId: s.vendorId,
+      channel: s.channel,
+      deposit: s.deposit.toString(),
+      used: s.signedCumulative.toString(),
+      idleEscrow: (s.deposit - s.signedCumulative).toString(),
+      idleMs: now - (s.lastVoucherAt ?? s.openedAt),
+      explorerUrl: explorerAddressUrl(this.config.cluster, s.channel),
+    }))
+    const byVendor = new Map<string, { vendorId: string; channels: number; deposit: bigint; used: bigint }>()
+    for (const s of open) {
+      const v = byVendor.get(s.vendorId) ?? { vendorId: s.vendorId, channels: 0, deposit: 0n, used: 0n }
+      v.channels++
+      v.deposit += s.deposit
+      v.used += s.signedCumulative
+      byVendor.set(s.vendorId, v)
+    }
+    return {
+      treasury: {
+        kind: this.treasury.kind,
+        vault: this.treasury.vaultAddress,
+        balance: (await this.treasury.vaultBalance())?.toString() ?? null,
+      },
+      escrowTiedUp: open.reduce((a, s) => a + s.deposit - s.signedCumulative, 0n).toString(),
+      channels,
+      byVendor: [...byVendor.values()].map((v) => ({
+        vendorId: v.vendorId,
+        channels: v.channels,
+        deposit: v.deposit.toString(),
+        used: v.used.toString(),
+        idleEscrow: (v.deposit - v.used).toString(),
+      })),
+    }
   }
 
   async pause(agentId: string, reason: string): Promise<void> {
