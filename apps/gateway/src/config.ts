@@ -26,6 +26,14 @@ export interface GatewayConfig {
   readonly idleAfterMs: number
   /** Treasury state written by `pnpm setup` (Squads vault + allowances). Absent -> sandbox faucet. */
   readonly treasuryFile: string
+  /**
+   * Running as serverless functions (Vercel): many short-lived instances share one database, so nothing is
+   * restored at start, and a forced close advances one step per call (cron finishes it) instead of
+   * blocking through the grace period.
+   */
+  readonly serverless: boolean
+  /** A close claimed longer ago than this, and still unfinished, is resumed by the next sweep. */
+  readonly closeStallMs: number
 }
 
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
@@ -49,5 +57,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
     idleSweepMs: num('TABULA_IDLE_SWEEP_MS', 0),
     idleAfterMs: num('TABULA_IDLE_AFTER_MS', 5 * 60_000),
     treasuryFile: env.TABULA_TREASURY_FILE || join(keysDir(), '..', 'data', 'treasury.json'),
+    serverless: (env.TABULA_SERVERLESS ?? (env.VERCEL ? '1' : '0')) === '1',
+    closeStallMs: num('TABULA_CLOSE_STALL_MS', 90_000),
   }
 }

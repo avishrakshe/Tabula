@@ -1,5 +1,5 @@
 import { first, type LedgerDb, schema } from '@tabula/ledger'
-import { and, desc, eq, inArray, isNotNull, or, sql } from '@tabula/ledger/sql'
+import { and, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from '@tabula/ledger/sql'
 import type { RegistryVendor } from './challenge.js'
 import { sha256Hex } from './util.js'
 
@@ -73,6 +73,49 @@ export class Store {
     return first(this.db.select().from(schema.channels).where(eq(schema.channels.id, id)))
   }
 
+  /**
+   * Claims a channel's close: only one caller (on any instance) moves it from open to closing.
+   * Returns the claimed row, or undefined when someone else already claimed it.
+   */
+  async claimClose(id: string, reason: string, now = Date.now()): Promise<schema.ChannelRow | undefined> {
+    return first(
+      this.db
+        .update(schema.channels)
+        .set({ status: 'closing', closeReason: reason, closingAt: now })
+        .where(and(eq(schema.channels.id, id), eq(schema.channels.status, 'open')))
+        .returning(),
+    )
+  }
+
+  /** Re-claims a stalled close for this caller (bumps `closingAt`), so concurrent sweeps resume it once. */
+  async claimResume(id: string, olderThanMs: number, now = Date.now()): Promise<boolean> {
+    const rows = await this.db
+      .update(schema.channels)
+      .set({ closingAt: now })
+      .where(
+        and(
+          eq(schema.channels.id, id),
+          eq(schema.channels.status, 'closing'),
+          or(isNull(schema.channels.closingAt), lt(schema.channels.closingAt, now - olderThanMs)),
+        ),
+      )
+      .returning({ id: schema.channels.id })
+    return rows.length > 0
+  }
+
+  /** Closes claimed more than `olderThanMs` ago that never finished (their instance stopped mid-close). */
+  async stalledCloses(olderThanMs: number, now = Date.now()): Promise<schema.ChannelRow[]> {
+    return this.db
+      .select()
+      .from(schema.channels)
+      .where(
+        and(
+          eq(schema.channels.status, 'closing'),
+          or(isNull(schema.channels.closingAt), lt(schema.channels.closingAt, now - olderThanMs)),
+        ),
+      )
+  }
+
   async channels(statuses?: schema.ChannelRow['status'][]): Promise<schema.ChannelRow[]> {
     const q = this.db.select().from(schema.channels)
     return statuses ? q.where(inArray(schema.channels.status, statuses)) : q
@@ -113,12 +156,21 @@ export class Store {
     )
   }
 
-  /** Signed rows whose vendor call never finished (gateway crashed mid-call): mark them timed out. */
-  async finalizeDangling(): Promise<number> {
+  /**
+   * Signed rows whose vendor call never finished (the gateway stopped mid-call): mark them timed out.
+   * With several instances, only rows older than `olderThanMs` count (younger ones may still be in flight).
+   */
+  async finalizeDangling(olderThanMs = 0, now = Date.now()): Promise<number> {
     const rows = await this.db
       .update(schema.vouchers)
       .set({ responseStatus: 'timeout' })
-      .where(and(eq(schema.vouchers.verdict, 'signed'), sql`${schema.vouchers.responseStatus} is null`))
+      .where(
+        and(
+          eq(schema.vouchers.verdict, 'signed'),
+          sql`${schema.vouchers.responseStatus} is null`,
+          lt(schema.vouchers.ts, now - olderThanMs + 1),
+        ),
+      )
       .returning({ id: schema.vouchers.id })
     return rows.length
   }

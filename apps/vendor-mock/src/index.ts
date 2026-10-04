@@ -1,4 +1,5 @@
 export * from './config.js'
+export * from './pg-store.js'
 export * from './rng.js'
 export * from './server.js'
 export * from './start.js'

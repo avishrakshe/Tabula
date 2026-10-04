@@ -14,6 +14,7 @@ import {
   merkleRoot,
   parseBatchMemo,
   schema,
+  withLock,
 } from '@tabula/ledger'
 import { and, asc, eq, gt, isNull, sql } from '@tabula/ledger/sql'
 import {
@@ -52,8 +53,8 @@ export class Anchorer {
   ) {}
 
   /** Rows ready to anchor: unbatched, in id order, stopping at the first row still awaiting a vendor response. */
-  async pendingRows(limit = this.maxPerBatch): Promise<schema.VoucherRow[]> {
-    const rows = await this.db
+  async pendingRows(limit = this.maxPerBatch, db: LedgerDb = this.db): Promise<schema.VoucherRow[]> {
+    const rows = await db
       .select()
       .from(schema.vouchers)
       .where(isNull(schema.vouchers.batchId))
@@ -75,27 +76,46 @@ export class Anchorer {
     return Number(row?.n ?? 0)
   }
 
-  /** Anchors the next batch if there is anything to anchor. Serialized: one batch at a time. */
+  /**
+   * Anchors the next batch if there is anything to anchor. The rows are claimed first (stamped with a
+   * pending batch under a cross-instance lock), then the memo is sent outside the transaction; a failed
+   * send releases them. So instances sharing one database never anchor the same rows twice.
+   */
   async anchorNext(minRows = 1): Promise<schema.BatchRow | null> {
     return this.#lock.run('anchor', async () => {
-      const rows = await this.pendingRows()
-      if (rows.length < minRows || rows.length === 0) return null
-      const root = merkleRoot(rows.map(canonicalVoucher))
-      const first = rows[0]!.id
-      const last = rows[rows.length - 1]!.id
-      const [batch] = await this.db
-        .insert(schema.batches)
-        .values({
-          merkleRoot: root,
-          voucherCount: rows.length,
-          firstVoucherId: first,
-          lastVoucherId: last,
-          status: 'pending',
-          createdAt: Date.now(),
-        })
-        .returning()
+      const claim = await withLock(this.db, 'anchor', async (tx) => {
+        const rows = await this.pendingRows(this.maxPerBatch, tx)
+        if (rows.length < minRows || rows.length === 0) return null
+        const root = merkleRoot(rows.map(canonicalVoucher))
+        const first = rows[0]!.id
+        const last = rows[rows.length - 1]!.id
+        const [batch] = await tx
+          .insert(schema.batches)
+          .values({
+            merkleRoot: root,
+            voucherCount: rows.length,
+            firstVoucherId: first,
+            lastVoucherId: last,
+            status: 'pending',
+            createdAt: Date.now(),
+          })
+          .returning()
+        await tx
+          .update(schema.vouchers)
+          .set({ batchId: batch!.id })
+          .where(
+            and(
+              gt(schema.vouchers.id, first - 1),
+              sql`${schema.vouchers.id} <= ${last}`,
+              isNull(schema.vouchers.batchId),
+            ),
+          )
+        return { rows, root, first, last, batch: batch! }
+      })
+      if (!claim) return null
+      const { rows, root, first, last, batch } = claim
       const memo = formatBatchMemo({
-        batchId: batch!.id,
+        batchId: batch.id,
         count: rows.length,
         firstVoucherId: first,
         lastVoucherId: last,
@@ -108,32 +128,26 @@ export class Anchorer {
           instructions: [buildMemoInstruction(memo, this.operator)],
         })
       } catch (err) {
-        await this.db.update(schema.batches).set({ status: 'failed' }).where(eq(schema.batches.id, batch!.id))
+        // release the rows so the next attempt anchors them
+        await this.db.transaction(async (t) => {
+          await t.update(schema.vouchers).set({ batchId: null }).where(eq(schema.vouchers.batchId, batch.id))
+          await t.update(schema.batches).set({ status: 'failed' }).where(eq(schema.batches.id, batch.id))
+        })
         throw err
       }
       const anchoredAt = Date.now()
-      await this.db
-        .update(schema.vouchers)
-        .set({ batchId: batch!.id })
-        .where(
-          and(
-            gt(schema.vouchers.id, first - 1),
-            sql`${schema.vouchers.id} <= ${last}`,
-            isNull(schema.vouchers.batchId),
-          ),
-        )
       const [updated] = await this.db
         .update(schema.batches)
         .set({ status: 'anchored', txSignature: tx, anchoredAt })
-        .where(eq(schema.batches.id, batch!.id))
+        .where(eq(schema.batches.id, batch.id))
         .returning()
       await this.bus.emit({
         type: 'batch_anchored',
-        message: `Anchored ledger batch #${batch!.id}: ${rows.length} vouchers, Merkle root ${root.slice(0, 12)}…`,
+        message: `Anchored ledger batch #${batch.id}: ${rows.length} vouchers, Merkle root ${root.slice(0, 12)}…`,
         txSignature: tx,
         explorerUrl: explorerTxUrl(this.cluster, tx),
         data: {
-          batchId: batch!.id,
+          batchId: batch.id,
           root,
           count: rows.length,
           firstVoucherId: first,

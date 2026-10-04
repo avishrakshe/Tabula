@@ -6,7 +6,7 @@ import {
   type SessionChallenge,
   type SignedVoucher,
 } from '@solana/mpp/client'
-import type { schema } from '@tabula/ledger'
+import { type schema, withLock } from '@tabula/ledger'
 import { formatUsd, type Remaining } from '@tabula/policy'
 import {
   buildDistribute,
@@ -34,7 +34,7 @@ import {
   VendorUnreachableError,
 } from './mpp-client.js'
 import type { PolicyService } from './policy-service.js'
-import type { Store } from './store.js'
+import { Store } from './store.js'
 import { CeilingError, type FundingResult, type Treasury } from './treasury.js'
 import { KeyedMutex, newId, sleep, toNum, withTimeout } from './util.js'
 
@@ -64,7 +64,8 @@ export interface LiveSession {
   readonly unitsPerCall: number
   deposit: bigint
   signedCumulative: bigint
-  challenge: SessionChallenge
+  /** The vendor's latest verified 402 challenge; fetched lazily (null after a restart or on a fresh instance). */
+  challenge: SessionChallenge | null
   status: 'open' | 'closing' | 'closed'
   lastVoucherAt: number | null
   readonly openedAt: number
@@ -110,6 +111,8 @@ export interface CloseResult {
   readonly refunded: string
   readonly txSignature: string | null
   readonly explorerUrl: string | null
+  /** The close is still in progress (another instance, or a forced close waiting out its grace period). */
+  readonly pending?: boolean
 }
 
 const remainingJson = (r: Remaining): Record<keyof Remaining, string | null> => ({
@@ -120,10 +123,16 @@ const remainingJson = (r: Remaining): Record<keyof Remaining, string | null> => 
   ceiling: r.ceiling?.toString() ?? null,
 })
 
+/**
+ * Sessions live in the ledger; this class keeps a per-instance cache of their immutable parts (endpoint,
+ * channel, price, last challenge) and re-reads the mutable parts (deposit, signed cumulative, status) from
+ * the database whenever a decision depends on them. Signing runs under a transaction-scoped advisory lock
+ * per agent, and a close is claimed atomically, so any number of instances can share one database.
+ */
 export class SessionManager {
   readonly #sessions = new Map<string, LiveSession>()
+  /** Orders one session's vouchers within this instance (the vendor wants cumulatives in order). */
   readonly #sessionLock = new KeyedMutex()
-  readonly #agentLock = new KeyedMutex()
   /** Kill/pause work started from a voucher request; drained before shutdown. */
   readonly #background = new Set<Promise<unknown>>()
 
@@ -157,8 +166,60 @@ export class SessionManager {
     while (this.#background.size) await Promise.allSettled([...this.#background])
   }
 
+  /** Sessions this instance has seen (a cache; the ledger is the record). */
   sessions(): LiveSession[] {
     return [...this.#sessions.values()]
+  }
+
+  /** A session with its mutable state freshly read from the ledger, or undefined. */
+  async find(sessionId: string): Promise<LiveSession | undefined> {
+    const row = await this.store.channel(sessionId)
+    if (!row?.channelPda) return undefined
+    let s = this.#sessions.get(sessionId)
+    if (!s) {
+      const vendor = await this.store.vendor(row.vendorId)
+      s = {
+        id: row.id,
+        agentId: row.agentId,
+        vendorId: row.vendorId,
+        taskId: row.taskId ?? 'unknown',
+        taskType: vendor?.taskType ?? 'general',
+        knownTasks: new Set(row.taskId ? [row.taskId] : []),
+        endpoint: row.endpoint,
+        channel: address(row.channelPda),
+        pricePerCall: BigInt(row.pricePerCall),
+        unitsPerCall: vendor ? Math.max(1, Math.round(row.pricePerCall / vendor.unitPrice)) : 1,
+        deposit: BigInt(row.deposit),
+        signedCumulative: BigInt(row.signedCumulative),
+        challenge: null,
+        status: 'open',
+        lastVoucherAt: row.lastVoucherAt,
+        openedAt: row.openedAt,
+      }
+      this.#sessions.set(sessionId, s)
+    }
+    this.#apply(s, row)
+    return s
+  }
+
+  #apply(s: LiveSession, row: schema.ChannelRow): void {
+    s.deposit = BigInt(row.deposit)
+    s.signedCumulative = BigInt(row.signedCumulative)
+    s.lastVoucherAt = row.lastVoucherAt
+    s.status =
+      row.status === 'open' || row.status === 'opening'
+        ? 'open'
+        : row.status === 'closing'
+          ? 'closing'
+          : 'closed'
+  }
+
+  /** Brings the signer's guard for this agent and channel in line with what was just read. */
+  #syncSigner(agentId: string, s: LiveSession): void {
+    if (this.policy.agentStatus(agentId) === 'killed') this.signer.markKilled(agentId)
+    else this.signer.revive(agentId)
+    this.signer.setGlobalKill(this.policy.globalKill)
+    this.signer.registerChannel(s.channel, agentId, s.deposit, s.signedCumulative)
   }
 
   /** Rebuilds live sessions from the ledger after a restart; dangling vendor calls become timeouts. */
@@ -184,7 +245,7 @@ export class SessionManager {
         unitsPerCall: vendor ? Math.max(1, Math.round(row.pricePerCall / vendor.unitPrice)) : 1,
         deposit: BigInt(row.deposit),
         signedCumulative: signed,
-        challenge: challenge as SessionChallenge,
+        challenge,
         status: row.status === 'closing' ? 'closing' : 'open',
         lastVoucherAt: row.lastVoucherAt,
         openedAt: row.openedAt,
@@ -201,7 +262,9 @@ export class SessionManager {
   // ---------------------------------------------------------------------------------------
 
   async open(agent: schema.AgentRow, req: OpenRequest) {
-    if (this.signer.isKilled(agent.id) || this.policy.agentStatus(agent.id) !== 'active') {
+    // another instance may have stopped this agent or flipped the global kill switch
+    await this.policy.refreshAgent(this.store.db, agent.id)
+    if (this.policy.globalKill || this.policy.agentStatus(agent.id) !== 'active') {
       throw new GatewayError(
         403,
         'AGENT_STOPPED',
@@ -575,7 +638,7 @@ export class SessionManager {
   }
 
   async #voucher(agentId: string, sessionId: string, body: VoucherRequestBody): Promise<VoucherResult> {
-    const s = this.#sessions.get(sessionId)
+    const s = await this.find(sessionId)
     if (!s || s.agentId !== agentId)
       throw new GatewayError(404, 'NO_SESSION', `no session ${sessionId} for ${agentId}`)
 
@@ -599,8 +662,17 @@ export class SessionManager {
       s.knownTasks.add(taskId)
     }
 
-    // evaluate + sign under the agent lock so concurrent sessions of one agent see each other's spend
-    const signedPhase = await this.#agentLock.run(agentId, async () => {
+    // Evaluate + sign under the agent's lock (a transaction-scoped advisory lock, so it holds across
+    // instances): concurrent sessions of one agent see each other's spend, and everything the decision
+    // depends on is re-read inside the transaction.
+    const signedPhase = await withLock(this.store.db, `agent:${agentId}`, async (tx) => {
+      const store = new Store(tx)
+      const row = await store.channel(sessionId)
+      if (row?.status !== 'open')
+        throw new GatewayError(409, 'SESSION_CLOSED', `session ${sessionId} is ${row?.status ?? 'gone'}`)
+      this.#apply(s, row)
+      await this.policy.refreshAgent(tx, agentId)
+      this.#syncSigner(agentId, s)
       // The onchain ceiling binds when escrow is funded (deposit <= pulled <= allowance), and the
       // program caps every voucher at the deposit, so the voucher path needs no RPC round trip.
       const { decision, approval } = this.policy.authorize({
@@ -617,7 +689,7 @@ export class SessionManager {
       })
       const now = Date.now()
       if (!approval) {
-        const row = await this.store.insertVoucher({
+        const row = await store.insertVoucher({
           idempotencyKey: `${sessionId}:blocked:${newId('b')}`,
           requestId: body.requestId ?? null,
           channelId: sessionId,
@@ -651,7 +723,7 @@ export class SessionManager {
         throw err
       }
       // write-ahead: a signed voucher is claimable, so the ledger records it before it leaves
-      const row = await this.store.insertVoucher({
+      const signedRow = await store.insertVoucher({
         idempotencyKey: `${sessionId}:${decision.newCumulative}`,
         requestId: body.requestId ?? null,
         channelId: sessionId,
@@ -668,7 +740,7 @@ export class SessionManager {
       })
       s.signedCumulative = decision.newCumulative
       s.lastVoucherAt = now
-      await this.store.updateChannel(sessionId, {
+      await store.updateChannel(sessionId, {
         signedCumulative: toNum(s.signedCumulative),
         lastVoucherAt: now,
       })
@@ -678,7 +750,7 @@ export class SessionManager {
         taskId,
         vendorId: s.vendorId,
       })
-      return { kind: 'signed' as const, signed, decision, row }
+      return { kind: 'signed' as const, signed, decision, row: signedRow }
     })
 
     if (signedPhase.kind === 'blocked') {
@@ -710,7 +782,7 @@ export class SessionManager {
       if (!s.challenge || challengeExpiring(s.challenge)) await this.#refreshChallenge(s)
       result = await authorizedCall(
         s.endpoint,
-        credentialFor(s.challenge, { action: 'voucher', channelId: s.channel, voucher: signed }),
+        credentialFor(s.challenge!, { action: 'voucher', channelId: s.channel, voucher: signed }),
         this.config.vendorTimeoutMs,
         body.prompt ? { prompt: body.prompt } : {},
       )
@@ -719,7 +791,7 @@ export class SessionManager {
         await this.#refreshChallenge(s)
         result = await authorizedCall(
           s.endpoint,
-          credentialFor(s.challenge, { action: 'voucher', channelId: s.channel, voucher: signed }),
+          credentialFor(s.challenge!, { action: 'voucher', channelId: s.channel, voucher: signed }),
           this.config.vendorTimeoutMs,
           body.prompt ? { prompt: body.prompt } : {},
         )
@@ -804,26 +876,30 @@ export class SessionManager {
   // close
   // ---------------------------------------------------------------------------------------
 
-  async close(sessionId: string, reason: string, opts: { forceOnly?: boolean } = {}): Promise<CloseResult> {
+  /**
+   * Closes a session: cooperatively at the last signed voucher, else forced onchain. Only one caller, on any
+   * instance, gets to run a close (it is claimed atomically); others get the channel's current result.
+   * `resume` continues a close whose instance stopped part-way (the sweep does this).
+   */
+  async close(
+    sessionId: string,
+    reason: string,
+    opts: { forceOnly?: boolean; resume?: boolean } = {},
+  ): Promise<CloseResult> {
     return this.#sessionLock.run(sessionId, () => this.#close(sessionId, reason, opts))
   }
 
-  async #close(sessionId: string, reason: string, opts: { forceOnly?: boolean }): Promise<CloseResult> {
-    const s = this.#sessions.get(sessionId)
+  async #close(
+    sessionId: string,
+    reason: string,
+    opts: { forceOnly?: boolean; resume?: boolean },
+  ): Promise<CloseResult> {
+    const s = await this.find(sessionId)
     if (!s) throw new GatewayError(404, 'NO_SESSION', `no session ${sessionId}`)
-    if (s.status === 'closed') {
-      const row = await this.store.channel(sessionId)
-      return {
-        sessionId,
-        mode: 'cooperative',
-        settled: String(row?.settledAmount ?? 0),
-        refunded: String(row?.refundedAmount ?? 0),
-        txSignature: row?.closeTx ?? null,
-        explorerUrl: row?.closeTx ? explorerTxUrl(this.config.cluster, row.closeTx) : null,
-      }
+    if (!opts.resume && !(await this.store.claimClose(sessionId, reason))) {
+      return this.#closeResultFromLedger(sessionId) // closing elsewhere, or already closed
     }
     s.status = 'closing'
-    await this.store.updateChannel(sessionId, { status: 'closing', closeReason: reason })
     const last = await this.store.lastSignedVoucher(sessionId)
 
     let result: CloseResult | null = null
@@ -838,7 +914,12 @@ export class SessionManager {
         return null
       })
     }
-    if (!result) result = await this.#forcedClose(s, last ? BigInt(last.cumulativeAmount) : 0n)
+    if (!result) {
+      result = await this.#forcedClose(s, last ? BigInt(last.cumulativeAmount) : 0n, {
+        wait: !this.config.serverless,
+      })
+    }
+    if (result.pending) return result // grace period still running: a later sweep resumes the close
     s.status = 'closed'
     this.signer.forgetChannel(s.channel)
     await this.bus.emit({
@@ -851,6 +932,42 @@ export class SessionManager {
       data: { ...result, reason },
     })
     return result
+  }
+
+  async #closeResultFromLedger(sessionId: string): Promise<CloseResult> {
+    const row = await this.store.channel(sessionId)
+    const done = row?.status === 'refunded' || row?.status === 'sealed' || row?.status === 'failed'
+    return {
+      sessionId,
+      mode: 'cooperative',
+      settled: String(row?.settledAmount ?? 0),
+      refunded: String(row?.refundedAmount ?? 0),
+      txSignature: row?.closeTx ?? null,
+      explorerUrl: row?.closeTx ? explorerTxUrl(this.config.cluster, row.closeTx) : null,
+      ...(done ? {} : { pending: true }),
+    }
+  }
+
+  /**
+   * Finishes closes whose instance stopped part-way, or whose forced close was waiting out the grace
+   * period. Each one is re-claimed first, so two sweeps never resume the same close.
+   */
+  async resumeStalledCloses(now = Date.now()): Promise<CloseResult[]> {
+    const out: CloseResult[] = []
+    for (const row of await this.store.stalledCloses(this.config.closeStallMs, now)) {
+      if (!(await this.store.claimResume(row.id, this.config.closeStallMs, now))) continue
+      try {
+        out.push(await this.close(row.id, row.closeReason ?? 'resumed', { resume: true }))
+      } catch (err) {
+        await this.bus.emit({
+          type: 'kill_step',
+          agentId: row.agentId,
+          channelId: row.id,
+          message: `Resuming the close of ${row.id} failed: ${(err as Error).message}`,
+        })
+      }
+    }
+    return out
   }
 
   async #cooperativeClose(s: LiveSession, last: schema.VoucherRow): Promise<CloseResult> {
@@ -868,7 +985,7 @@ export class SessionManager {
       if (!s.challenge || challengeExpiring(s.challenge)) await this.#refreshChallenge(s)
       const r = await fetch(s.endpoint, {
         headers: {
-          authorization: credentialFor(s.challenge, { action: 'close', channelId: s.channel, voucher }),
+          authorization: credentialFor(s.challenge!, { action: 'close', channelId: s.channel, voucher }),
         },
         signal,
       })
@@ -943,7 +1060,11 @@ export class SessionManager {
    * period (the vendor may still settle its best voucher), seal, distribute (refund to the agent
    * wallet). Tabula's operator pays the fees.
    */
-  async #forcedClose(s: LiveSession, ledgerSigned: bigint): Promise<CloseResult> {
+  async #forcedClose(
+    s: LiveSession,
+    ledgerSigned: bigint,
+    { wait }: { wait: boolean },
+  ): Promise<CloseResult> {
     const { cluster } = this.config
     const keys = await this.custody.agentKeys(s.agentId)
     const operator = this.custody.operator
@@ -967,6 +1088,27 @@ export class SessionManager {
         `Requested a forced close of ${s.agentId}'s channel; grace period ${view.gracePeriod}s starts now`,
         tx,
       )
+      view = await fetchChannelView(this.rpc, s.channel)
+    }
+    if (view.statusName === 'closing' && !wait) {
+      // serverless: one step per call; a later sweep seals once the grace period has passed
+      const graceEnds = view.closureStartedAt + BigInt(view.gracePeriod)
+      if ((await clusterUnixTime(this.rpc)) < graceEnds) {
+        return {
+          sessionId: s.id,
+          mode: 'forced',
+          settled: view.settled.toString(),
+          refunded: '0',
+          txSignature: null,
+          explorerUrl: null,
+          pending: true,
+        }
+      }
+      const tx = await sendAndConfirm(this.rpc, {
+        feePayer: operator,
+        instructions: [buildSeal(cluster, s.channel)],
+      })
+      await step('Grace period over: sealed the channel', tx)
       view = await fetchChannelView(this.rpc, s.channel)
     }
     if (view.statusName === 'closing') {
@@ -1045,9 +1187,15 @@ export class SessionManager {
     by: 'policy' | 'operator' = 'operator',
   ): Promise<CloseResult[]> {
     this.signer.markKilled(agentId)
-    const already = this.policy.agentStatus(agentId) === 'killed'
+    // under the agent's lock: a voucher being signed on any instance finishes first, and every later one
+    // re-reads this status inside the same lock and is refused
+    const already = await withLock(this.store.db, `agent:${agentId}`, async (tx) => {
+      const store = new Store(tx)
+      const before = (await store.agent(agentId))?.status
+      await store.setAgentStatus(agentId, 'killed')
+      return before === 'killed'
+    })
     this.policy.setAgentStatus(agentId, 'killed')
-    await this.store.setAgentStatus(agentId, 'killed')
     if (!already) {
       await this.bus.emit({
         type: 'agent_killed',
@@ -1060,17 +1208,17 @@ export class SessionManager {
         data: { reason, by },
       })
     }
-    const open = this.sessions().filter((s) => s.agentId === agentId && s.status === 'open')
+    const open = (await this.store.channels(['open'])).filter((c) => c.agentId === agentId)
     const results: CloseResult[] = []
-    for (const s of open) {
+    for (const c of open) {
       try {
-        results.push(await this.close(s.id, `killed: ${reason}`))
+        results.push(await this.close(c.id, `killed: ${reason}`))
       } catch (err) {
         await this.bus.emit({
           type: 'kill_step',
           agentId,
-          channelId: s.id,
-          message: `Closing ${s.id} failed: ${(err as Error).message}`,
+          channelId: c.id,
+          message: `Closing ${c.id} failed: ${(err as Error).message}`,
         })
       }
     }
@@ -1113,29 +1261,26 @@ export class SessionManager {
    * the wallets of agents with no open channel back to the vault. Returns what was reclaimed.
    */
   async sweepIdle(idleMs: number = this.config.idleAfterMs, now = Date.now()) {
-    const idle = this.sessions().filter(
-      (s) => s.status === 'open' && now - (s.lastVoucherAt ?? s.openedAt) >= idleMs,
+    const idle = (await this.store.channels(['open'])).filter(
+      (c) => now - (c.lastVoucherAt ?? c.openedAt) >= idleMs,
     )
     const closed: CloseResult[] = []
-    for (const s of idle) {
+    for (const c of idle) {
       try {
         closed.push(
-          await this.close(s.id, `idle for ${Math.round((now - (s.lastVoucherAt ?? s.openedAt)) / 1000)}s`),
+          await this.close(c.id, `idle for ${Math.round((now - (c.lastVoucherAt ?? c.openedAt)) / 1000)}s`),
         )
       } catch (err) {
         await this.bus.emit({
           type: 'sweep',
-          agentId: s.agentId,
-          channelId: s.id,
-          message: `Closing idle channel ${s.id} failed: ${(err as Error).message}`,
+          agentId: c.agentId,
+          channelId: c.id,
+          message: `Closing idle channel ${c.id} failed: ${(err as Error).message}`,
         })
       }
     }
-    const busy = new Set(
-      this.sessions()
-        .filter((s) => s.status !== 'closed')
-        .map((s) => s.agentId),
-    )
+    // agents with a channel opening, open or closing keep their float
+    const busy = new Set((await this.store.channels(['opening', 'open', 'closing'])).map((c) => c.agentId))
     const swept: { agentId: string; amount: string }[] = []
     for (const a of await this.store.agents()) {
       if (busy.has(a.id)) continue
@@ -1155,7 +1300,18 @@ export class SessionManager {
 
   /** Escrow tied up per open channel and per vendor, plus the treasury side. */
   async floatView(now = Date.now()) {
-    const open = this.sessions().filter((s) => s.status === 'open')
+    const open = (await this.store.channels(['open']))
+      .filter((c) => c.channelPda)
+      .map((c) => ({
+        id: c.id,
+        agentId: c.agentId,
+        vendorId: c.vendorId,
+        channel: c.channelPda!,
+        deposit: BigInt(c.deposit),
+        signedCumulative: BigInt(c.signedCumulative),
+        lastVoucherAt: c.lastVoucherAt,
+        openedAt: c.openedAt,
+      }))
     const channels = open.map((s) => ({
       sessionId: s.id,
       agentId: s.agentId,
@@ -1165,7 +1321,7 @@ export class SessionManager {
       used: s.signedCumulative.toString(),
       idleEscrow: (s.deposit - s.signedCumulative).toString(),
       idleMs: now - (s.lastVoucherAt ?? s.openedAt),
-      explorerUrl: explorerAddressUrl(this.config.cluster, s.channel),
+      explorerUrl: explorerAddressUrl(this.config.cluster, s.channel as Address),
     }))
     const byVendor = new Map<string, { vendorId: string; channels: number; deposit: bigint; used: bigint }>()
     for (const s of open) {

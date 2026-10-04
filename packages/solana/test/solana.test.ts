@@ -5,7 +5,7 @@ import { address, getAddressEncoder } from '@solana/kit'
 import { describe, expect, it } from 'vitest'
 import { deriveChannelAddress, randomSalt } from '../src/channels.js'
 import { explorerAddressUrl, explorerTxUrl, resolveCluster } from '../src/cluster.js'
-import { ephemeralKeypair, loadOrCreateKeypair } from '../src/keys.js'
+import { deriveKeypair, ephemeralKeypair, loadOrCreateKeypair } from '../src/keys.js'
 import { customErrorCode } from '../src/rpc.js'
 import {
   buildEd25519VoucherInstruction,
@@ -129,5 +129,26 @@ describe('keys', () => {
     const b = await loadOrCreateKeypair('agent-x-payer')
     expect(b.address).toBe(a.address)
     await expect(loadOrCreateKeypair('../escape')).rejects.toThrow(/invalid key name/)
+  })
+
+  it('derives every named key from TABULA_KEY_SEED, deterministically and distinctly', async () => {
+    const seed = 'ab'.repeat(32)
+    process.env.TABULA_KEY_SEED = seed
+    try {
+      const payer = await loadOrCreateKeypair('agent-x-payer')
+      const again = await loadOrCreateKeypair('agent-x-payer')
+      const voucher = await loadOrCreateKeypair('agent-x-voucher')
+      expect(again.address).toBe(payer.address)
+      expect(voucher.address).not.toBe(payer.address)
+      // the same seed and name give the same key anywhere (a fresh instance rebuilds it)
+      expect((await deriveKeypair(Buffer.from(seed, 'hex'), 'agent-x-payer')).address).toBe(payer.address)
+      expect((await deriveKeypair(Buffer.from('cd'.repeat(32), 'hex'), 'agent-x-payer')).address).not.toBe(
+        payer.address,
+      )
+      process.env.TABULA_KEY_SEED = 'not-hex'
+      await expect(loadOrCreateKeypair('agent-y-payer')).rejects.toThrow(/64 hex/)
+    } finally {
+      delete process.env.TABULA_KEY_SEED
+    }
   })
 })

@@ -91,7 +91,7 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
     rpc: gw.config.cluster.rpcUrl,
     mint: gw.config.mint,
     treasury: gw.treasury.kind,
-    openSessions: gw.sessions.sessions().filter((s) => s.status === 'open').length,
+    openSessions: (await gw.store.channels(['open'])).length,
   }))
 
   // ---- agent API -------------------------------------------------------------------------
@@ -114,7 +114,7 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
     '/v1/sessions/:id/close',
     { preHandler: requireAgent },
     async (req) => {
-      const s = gw.sessions.session(req.params.id)
+      const s = await gw.sessions.find(req.params.id)
       if (!s || s.agentId !== req.agent!.id) throw new GatewayError(404, 'NO_SESSION', 'no such session')
       return gw.sessions.close(req.params.id, 'closed by agent')
     },

@@ -70,6 +70,8 @@ export async function startHarness(opts: {
     idleSweepMs: 0,
     idleAfterMs: 5 * 60_000,
     treasuryFile: join(keysDir, 'treasury.json'),
+    serverless: false,
+    closeStallMs: 90_000,
     ...opts.gateway,
   }
   if (opts.treasury === 'ceiling') {

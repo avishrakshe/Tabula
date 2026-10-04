@@ -61,7 +61,9 @@ export async function createGateway(
   for (const a of await store.agents()) if (a.status === 'killed') signer.markKilled(a.id)
   const treasury = opts.treasury ? await opts.treasury(rpc, custody) : defaultTreasury(config, rpc, custody)
   const sessions = new SessionManager(config, rpc, store, custody, signer, policy, treasury, bus)
-  await sessions.restore()
+  // a long-running gateway rebuilds its sessions and settles calls cut off by its last stop; serverless
+  // instances load sessions on demand and leave dangling calls to the sweep (others may still be in flight)
+  if (!config.serverless) await sessions.restore()
   const anchorer = new Anchorer(ledger.db, rpc, config.cluster, custody.operator, bus)
 
   // anchor a batch every `anchorEvery` ledger rows (the periodic timer lives in main.ts)

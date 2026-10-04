@@ -1,5 +1,5 @@
 import { createSolanaRpc, type KeyPairSigner } from '@solana/kit'
-import { Mppx, session } from '@solana/mpp/server'
+import { Mppx, type SessionStore, session } from '@solana/mpp/server'
 import type { ClusterConfig } from '@tabula/solana'
 import { Hono } from 'hono'
 import { pricePerCall, type VendorConfig } from './config.js'
@@ -18,6 +18,10 @@ export interface VendorDeps {
   readonly secretKey?: string
   /** Skip artificial latency (tests). */
   readonly noLatency?: boolean
+  /** Session state store (default: in memory; Postgres when hosted as serverless functions). */
+  readonly store?: SessionStore
+  /** Serve under a path prefix (e.g. `/api/vendors/inference-a` inside the web app). */
+  readonly basePath?: string
 }
 
 export interface VendorStats {
@@ -47,6 +51,7 @@ export function createVendorApp(config: VendorConfig, deps: VendorDeps) {
     recipient: deps.payee.address,
     rpc: createSolanaRpc(deps.cluster.rpcUrl),
     signer: deps.payee,
+    ...(deps.store ? { store: deps.store } : {}),
     suggestedDeposit: config.suggestedDeposit,
     unitType: config.unitName,
   })
@@ -84,7 +89,7 @@ export function createVendorApp(config: VendorConfig, deps: VendorDeps) {
     return { outcome, latency }
   }
 
-  const app = new Hono()
+  const app = deps.basePath ? new Hono().basePath(deps.basePath) : new Hono()
 
   app.get('/health', (c) =>
     c.json({

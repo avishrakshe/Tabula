@@ -1,4 +1,6 @@
+import { createHmac } from 'node:crypto'
 import { serve } from '@hono/node-server'
+import type { LedgerDb } from '@tabula/ledger'
 import {
   type ClusterConfig,
   createRpc,
@@ -8,7 +10,36 @@ import {
   setTokenBalance,
 } from '@tabula/solana'
 import type { VendorConfig } from './config.js'
+import { createPostgresSessionStore } from './pg-store.js'
 import { createVendorApp, type VendorDeps } from './server.js'
+
+/**
+ * A vendor for serverless hosting (a route handler in the web app): payee and fee-payer keys derived
+ * from TABULA_KEY_SEED, session state in Postgres, and a challenge secret every instance shares (so a
+ * 402 challenge issued by one instance verifies on another). Funding is the deployment's job, not this.
+ */
+export async function createHostedVendor(
+  config: VendorConfig,
+  cluster: ClusterConfig,
+  mint: string,
+  opts: { db: LedgerDb; basePath: string },
+) {
+  const seed = process.env.TABULA_KEY_SEED
+  if (!seed)
+    throw new Error('hosted vendors need TABULA_KEY_SEED (their keys and challenge secret derive from it)')
+  const secretKey = createHmac('sha256', Buffer.from(seed, 'hex'))
+    .update(`tabula/v1/vendor-${config.id}-mpp-secret`)
+    .digest('base64')
+  return createVendorApp(config, {
+    cluster,
+    mint,
+    payee: await loadOrCreateKeypair(config.payeeKey),
+    operator: await loadOrCreateKeypair(`vendor-${config.id}-operator`),
+    secretKey,
+    store: createPostgresSessionStore(opts.db, config.id),
+    basePath: opts.basePath,
+  })
+}
 
 export interface RunningVendor {
   readonly config: VendorConfig

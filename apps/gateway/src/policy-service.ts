@@ -29,6 +29,21 @@ export interface AuthorizeInput {
   readonly now?: number
 }
 
+/** The global kill switch is on when the latest global_kill event is newer than the latest global_unkill. */
+async function readGlobalKill(db: LedgerDb): Promise<boolean> {
+  const latest = async (type: 'global_kill' | 'global_unkill') =>
+    (
+      await db
+        .select({ id: schema.events.id })
+        .from(schema.events)
+        .where(eq(schema.events.type, type))
+        .orderBy(desc(schema.events.id))
+        .limit(1)
+    )[0]?.id ?? 0
+  const [kill, unkill] = [await latest('global_kill'), await latest('global_unkill')]
+  return kill > unkill
+}
+
 interface PolicyVersion {
   readonly id: number
   readonly version: number
@@ -74,19 +89,45 @@ export class PolicyService {
       h.push({ ts: r.ts, amount: BigInt(r.delta), taskId: r.taskId, vendorId: r.vendorId })
       this.#history.set(r.agentId, h)
     }
-    const [lastKill] = await this.db
-      .select()
-      .from(schema.events)
-      .where(eq(schema.events.type, 'global_kill'))
-      .orderBy(desc(schema.events.id))
-      .limit(1)
-    const [lastUnkill] = await this.db
-      .select()
-      .from(schema.events)
-      .where(eq(schema.events.type, 'global_unkill'))
-      .orderBy(desc(schema.events.id))
-      .limit(1)
-    this.#globalKill = !!lastKill && (!lastUnkill || lastUnkill.id < lastKill.id)
+    this.#globalKill = await readGlobalKill(this.db)
+  }
+
+  /**
+   * Reloads everything one agent's next decision depends on (active policies, its status, the global
+   * kill switch, its last 48h of signed spend), inside the caller's transaction. With several gateway
+   * instances sharing one database, any of them may have written since this one last looked.
+   */
+  async refreshAgent(tx: LedgerDb, agentId: string, now = Date.now()): Promise<void> {
+    const policies = await tx.select().from(schema.policies).where(eq(schema.policies.active, true))
+    this.#global = null
+    this.#agentPolicies.clear()
+    this.#vendorPolicies.clear()
+    for (const p of policies) this.#install(p)
+    const [agent] = await tx
+      .select({ status: schema.agents.status })
+      .from(schema.agents)
+      .where(eq(schema.agents.id, agentId))
+    if (agent) this.#status.set(agentId, agent.status)
+    const rows = await tx
+      .select({
+        ts: schema.vouchers.ts,
+        delta: schema.vouchers.delta,
+        taskId: schema.vouchers.taskId,
+        vendorId: schema.vouchers.vendorId,
+      })
+      .from(schema.vouchers)
+      .where(
+        and(
+          eq(schema.vouchers.agentId, agentId),
+          eq(schema.vouchers.verdict, 'signed'),
+          gte(schema.vouchers.ts, now - 2 * 86_400_000),
+        ),
+      )
+    this.#history.set(
+      agentId,
+      rows.map((r) => ({ ts: r.ts, amount: BigInt(r.delta), taskId: r.taskId, vendorId: r.vendorId })),
+    )
+    this.#globalKill = await readGlobalKill(tx)
   }
 
   #install(p: schema.PolicyRow): void {

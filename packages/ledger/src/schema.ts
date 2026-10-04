@@ -4,7 +4,7 @@
  * read back as JS numbers (exact up to 2^53: about $9 billion, and the year 287,396).
  */
 import { sql } from 'drizzle-orm'
-import { bigint, boolean, index, pgTable, serial, text, uniqueIndex } from 'drizzle-orm/pg-core'
+import { bigint, boolean, index, pgTable, primaryKey, serial, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
 const money = (name: string) => bigint(name, { mode: 'number' })
 const millis = (name: string) => bigint(name, { mode: 'number' })
@@ -105,6 +105,8 @@ export const channels = pgTable(
     gracePeriod: bigint('grace_period', { mode: 'number' }),
     openedAt: millis('opened_at').notNull(),
     lastVoucherAt: millis('last_voucher_at'),
+    /** When a gateway instance claimed the close; a close stalled past a threshold is resumed by cron. */
+    closingAt: millis('closing_at'),
     closedAt: millis('closed_at'),
   },
   (t) => [index('channels_agent_idx').on(t.agentId), index('channels_status_idx').on(t.status)],
@@ -191,6 +193,28 @@ export const events = pgTable(
   },
   (t) => [index('events_ts_idx').on(t.ts)],
 )
+
+/**
+ * The hosted demo vendors' MPP session state (their `SessionStore`), one JSON record per channel. Real
+ * vendors keep their own; ours share Tabula's database only because they are deployed with it.
+ */
+export const vendorSessions = pgTable(
+  'vendor_sessions',
+  {
+    vendorId: text('vendor_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    stateJson: text('state_json').notNull(),
+    updatedAt: millis('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.vendorId, t.channelId] })],
+)
+
+/** Non-secret deployment state (e.g. the treasury setup: vault, mint, allowances), as JSON values. */
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  valueJson: text('value_json').notNull(),
+  updatedAt: millis('updated_at').notNull(),
+})
 
 export type AgentRow = typeof agents.$inferSelect
 export type VendorRow = typeof vendors.$inferSelect

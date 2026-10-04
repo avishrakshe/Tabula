@@ -71,6 +71,9 @@ importers:
       '@solana/mpp':
         specifier: file:../../vendor/solana-mpp-0.11.0.tgz
         version: file:vendor/solana-mpp-0.11.0.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)
+      '@tabula/ledger':
+        specifier: workspace:*
+        version: link:../../packages/ledger
       '@tabula/solana':
         specifier: workspace:*
         version: link:../../packages/solana
