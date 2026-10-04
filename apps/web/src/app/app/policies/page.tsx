@@ -1,5 +1,6 @@
 'use client'
 
+import { Check, CircleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Table, Td, Th } from '@/components/ui'
 import { useTabula } from '@/lib/data/provider'
@@ -12,13 +13,24 @@ function scopeLabel(p: Pick<PolicyRow, 'scope' | 'scopeId'>) {
 
 export default function PoliciesPage() {
   const { data, actions, mode, now } = useTabula()
-  const active = useMemo(() => data.policies.filter((p) => p.active), [data.policies])
+  // a stable order (global, then agents and vendors by name) so a save doesn't reshuffle the list
+  const active = useMemo(
+    () =>
+      data.policies
+        .filter((p) => p.active)
+        .sort((a, b) =>
+          (a.scope === 'global' ? '' : `${a.scope}:${a.scopeId}`).localeCompare(
+            b.scope === 'global' ? '' : `${b.scope}:${b.scopeId}`,
+          ),
+        ),
+    [data.policies],
+  )
   const [selected, setSelected] = useState<string>('global')
   const current =
     active.find((p) => (p.scope === 'global' ? 'global' : `${p.scope}:${p.scopeId}`) === selected) ??
     active[0]
   const [draft, setDraft] = useState('')
-  const [msg, setMsg] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   // reset the editor when the saved rules change (not on every data refresh); scope clicks reset it too
   const savedRules = JSON.stringify(current?.rules ?? {}, null, 2)
   useEffect(() => setDraft(savedRules), [savedRules])
@@ -80,15 +92,21 @@ export default function PoliciesPage() {
                     onClick={async () => {
                       if (!current) return
                       setMsg(null)
+                      let rules: Record<string, unknown>
                       try {
-                        const v = await actions.savePolicy(
-                          current.scope,
-                          current.scopeId,
-                          JSON.parse(draft) as Record<string, unknown>,
-                        )
-                        setMsg(`Saved version ${v}.`)
+                        rules = JSON.parse(draft) as Record<string, unknown>
                       } catch (err) {
-                        setMsg((err as Error).message)
+                        setMsg({
+                          ok: false,
+                          text: `Not saved: that isn't valid JSON (${(err as Error).message}).`,
+                        })
+                        return
+                      }
+                      try {
+                        const v = await actions.savePolicy(current.scope, current.scopeId, rules)
+                        setMsg({ ok: true, text: `Saved version ${v}.` })
+                      } catch (err) {
+                        setMsg({ ok: false, text: `Not saved: ${(err as Error).message}` })
                       }
                     }}
                   >
@@ -108,7 +126,15 @@ export default function PoliciesPage() {
                   rows={16}
                   className="w-full rounded-xl border border-line bg-bg p-3 font-mono text-[13px]"
                 />
-                {msg ? <p className="mt-2 text-sm text-fg-2">{msg}</p> : null}
+                {msg?.ok ? (
+                  <p role="status" className="mt-2 flex items-center gap-1.5 text-sm text-fg-2">
+                    <Check className="size-4" aria-hidden /> {msg.text}
+                  </p>
+                ) : msg ? (
+                  <p role="alert" className="mt-2 flex items-center gap-1.5 text-sm text-sever">
+                    <CircleAlert className="size-4 shrink-0" aria-hidden /> {msg.text}
+                  </p>
+                ) : null}
                 <p className="mt-3 text-xs text-fg-2">
                   Fields: dailyBudgetUsd, perTaskBudgetUsd, velocity {'{windowSec, maxUsd}'} (or a list),
                   maxUnitPriceUsd, vendors {'{allow, deny}'}, anomaly {'{zScore, minSamples, bucketSec}'},

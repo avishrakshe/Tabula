@@ -46,7 +46,8 @@ const TaskBody = z.object({ status: z.enum(['completed', 'failed']) })
 export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
   app.setReplySerializer((payload) => bigintJson(payload))
-  await app.register(cors, { origin: true })
+  // the plugin's default methods are GET, HEAD and POST; the dashboard also saves policies with PUT
+  await app.register(cors, { origin: true, methods: ['GET', 'HEAD', 'POST', 'PUT'] })
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof GatewayError) {

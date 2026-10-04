@@ -5,8 +5,10 @@ import { type Address, address } from '@solana/kit'
 import type { SessionChallenge } from '@solana/mpp/client'
 import { encodeVoucherMessage, resolveCluster, signatureFromBase58, verifyVoucher } from '@tabula/solana'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { buildApp } from '../src/app.js'
 import { type RegistryVendor, verifyChallengeFields } from '../src/challenge.js'
 import { Custody, GuardedVoucherSigner, issueApproval, SignerRefusal } from '../src/custody.js'
+import type { Gateway } from '../src/gateway.js'
 import { challengeExpiring } from '../src/mpp-client.js'
 import { KeyedMutex, sleep, TimeoutError, withTimeout } from '../src/util.js'
 
@@ -233,5 +235,26 @@ describe('util', () => {
       ),
     ).rejects.toThrow(TimeoutError)
     await expect(withTimeout(1000, async () => 'fast')).resolves.toBe('fast')
+  })
+})
+
+describe('HTTP app', () => {
+  it('lets the dashboard, on another origin, use every method the admin API takes', async () => {
+    // preflights never reach a handler, so no gateway is needed
+    const app = await buildApp({} as Gateway)
+    for (const method of ['POST', 'PUT']) {
+      const res = await app.inject({
+        method: 'OPTIONS',
+        url: '/v1/policies',
+        headers: {
+          origin: 'http://localhost:3000',
+          'access-control-request-method': method,
+          'access-control-request-headers': 'authorization,content-type',
+        },
+      })
+      expect(res.statusCode).toBe(204)
+      expect(String(res.headers['access-control-allow-methods']).split(/,\s*/)).toContain(method)
+    }
+    await app.close()
   })
 })
