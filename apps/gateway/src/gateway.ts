@@ -94,7 +94,7 @@ export async function createGateway(
       unsubscribe()
       await sessions.drain()
       await Promise.allSettled([...inflight])
-      ledger.close()
+      await ledger.close()
     },
   }
 }

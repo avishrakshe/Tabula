@@ -58,7 +58,7 @@ export async function startHarness(opts: {
   const config: GatewayConfig = {
     port: 0,
     host: '127.0.0.1',
-    dbPath: join(keysDir, 'ledger.sqlite'),
+    dbPath: join(keysDir, 'ledger-pg'),
     cluster,
     mint,
     adminToken,

@@ -4,7 +4,8 @@
  *
  *   pnpm tsx scripts/verify-batch.ts            # every anchored batch
  *   pnpm tsx scripts/verify-batch.ts 3          # batch 3 only
- *   TABULA_DB_PATH=data/demo.sqlite pnpm tsx scripts/verify-batch.ts
+ *   TABULA_DB_PATH=data/demo-pg pnpm tsx scripts/verify-batch.ts      # the last pnpm demo run
+ *   DATABASE_URL=postgres://… pnpm tsx scripts/verify-batch.ts         # the deployed ledger
  */
 import { Anchorer, configFromEnv, EventBus } from '@tabula/gateway'
 import { openLedger, schema } from '@tabula/ledger'
@@ -46,7 +47,7 @@ async function main() {
     console.log(`\n${targets.length - failed}/${targets.length} batches verified against their onchain memos`)
     process.exitCode = failed ? 1 : 0
   } finally {
-    ledger.close()
+    await ledger.close()
   }
 }
 

@@ -1,7 +1,7 @@
 import cors from '@fastify/cors'
-import { schema } from '@tabula/ledger'
+import { first, schema } from '@tabula/ledger'
+import { desc, eq } from '@tabula/ledger/sql'
 import { explorerTxUrl } from '@tabula/solana'
-import { desc, eq } from 'drizzle-orm'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import type { GatewayEvent } from './events.js'
@@ -321,7 +321,7 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
 
   app.get<{ Params: { id: string } }>('/v1/batches/:id', { preHandler: requireAdmin }, async (req) => {
     const id = Number(req.params.id)
-    const batch = await gw.ledger.db.select().from(schema.batches).where(eq(schema.batches.id, id)).get()
+    const batch = await first(gw.ledger.db.select().from(schema.batches).where(eq(schema.batches.id, id)))
     if (!batch) throw new GatewayError(404, 'NO_BATCH', `no batch ${id}`)
     return {
       batch,

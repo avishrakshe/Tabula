@@ -5,8 +5,8 @@
  */
 
 import { schema } from '@tabula/ledger'
+import { eq } from '@tabula/ledger/sql'
 import type { PolicyDoc } from '@tabula/policy'
-import { eq } from 'drizzle-orm'
 import type { Gateway } from './gateway.js'
 import { newApiKey, sha256Hex } from './util.js'
 

@@ -1,12 +1,15 @@
 /**
- * Ledger schema. SQLite for the demo (node:sqlite via drizzle's sqlite-proxy driver, no native deps);
- * the shapes are plain enough to port to Postgres. Amounts are integer micro-dollars (USDC base
- * units). Timestamps are epoch milliseconds.
+ * Ledger schema (Postgres): Supabase when deployed, embedded PGlite locally and in tests. Amounts are
+ * integer micro-dollars (USDC base units) and timestamps are epoch milliseconds, both as `bigint` columns
+ * read back as JS numbers (exact up to 2^53: about $9 billion, and the year 287,396).
  */
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { bigint, boolean, index, pgTable, serial, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
-export const agents = sqliteTable('agents', {
+const money = (name: string) => bigint(name, { mode: 'number' })
+const millis = (name: string) => bigint(name, { mode: 'number' })
+
+export const agents = pgTable('agents', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   role: text('role').notNull(),
@@ -19,15 +22,15 @@ export const agents = sqliteTable('agents', {
   voucherPubkey: text('voucher_pubkey').notNull(),
   /** Onchain allowance (Subscriptions-program delegation PDA) that caps what the payer can pull. */
   allowancePubkey: text('allowance_pubkey'),
-  allowanceAmount: integer('allowance_amount'),
-  dailyBudget: integer('daily_budget').notNull(),
+  allowanceAmount: money('allowance_amount'),
+  dailyBudget: money('daily_budget').notNull(),
   status: text('status', { enum: ['active', 'paused', 'killed'] })
     .notNull()
     .default('active'),
-  createdAt: integer('created_at').notNull(),
+  createdAt: millis('created_at').notNull(),
 })
 
-export const vendors = sqliteTable('vendors', {
+export const vendors = pgTable('vendors', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   endpoint: text('endpoint').notNull(),
@@ -36,42 +39,42 @@ export const vendors = sqliteTable('vendors', {
   programId: text('program_id').notNull(),
   unitName: text('unit_name').notNull(),
   /** Registered price per unit; a 402 challenge offering more is rejected. */
-  unitPrice: integer('unit_price').notNull(),
-  maxUnitPrice: integer('max_unit_price').notNull(),
+  unitPrice: money('unit_price').notNull(),
+  maxUnitPrice: money('max_unit_price').notNull(),
   taskType: text('task_type').notNull(),
-  allowlisted: integer('allowlisted', { mode: 'boolean' }).notNull().default(true),
+  allowlisted: boolean('allowlisted').notNull().default(true),
 })
 
-export const policies = sqliteTable(
+export const policies = pgTable(
   'policies',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
+    id: serial('id').primaryKey(),
     scope: text('scope', { enum: ['global', 'agent', 'vendor'] }).notNull(),
     scopeId: text('scope_id'),
     rulesJson: text('rules_json').notNull(),
-    version: integer('version').notNull(),
-    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    version: bigint('version', { mode: 'number' }).notNull(),
+    active: boolean('active').notNull().default(true),
     updatedBy: text('updated_by').notNull(),
-    updatedAt: integer('updated_at').notNull(),
+    updatedAt: millis('updated_at').notNull(),
   },
   (t) => [index('policies_scope_idx').on(t.scope, t.scopeId, t.active)],
 )
 
-export const tasks = sqliteTable('tasks', {
+export const tasks = pgTable('tasks', {
   id: text('id').primaryKey(),
   agentId: text('agent_id').notNull(),
   label: text('label').notNull(),
   customerTag: text('customer_tag'),
   taskType: text('task_type').notNull(),
-  budget: integer('budget'),
+  budget: money('budget'),
   status: text('status', { enum: ['running', 'completed', 'failed'] })
     .notNull()
     .default('running'),
-  createdAt: integer('created_at').notNull(),
-  completedAt: integer('completed_at'),
+  createdAt: millis('created_at').notNull(),
+  completedAt: millis('completed_at'),
 })
 
-export const channels = sqliteTable(
+export const channels = pgTable(
   'channels',
   {
     /** Gateway session id. */
@@ -83,13 +86,13 @@ export const channels = sqliteTable(
     /** Endpoint the session pays (registry default, or an override the agent asked for). */
     endpoint: text('endpoint').notNull(),
     /** Amount per call from the verified 402 challenge. */
-    pricePerCall: integer('price_per_call').notNull(),
+    pricePerCall: money('price_per_call').notNull(),
     payerPubkey: text('payer_pubkey').notNull(),
     authorizedSigner: text('authorized_signer').notNull(),
-    deposit: integer('deposit').notNull(),
-    signedCumulative: integer('signed_cumulative').notNull().default(0),
-    settledAmount: integer('settled_amount'),
-    refundedAmount: integer('refunded_amount'),
+    deposit: money('deposit').notNull(),
+    signedCumulative: money('signed_cumulative').notNull().default(0),
+    settledAmount: money('settled_amount'),
+    refundedAmount: money('refunded_amount'),
     status: text('status', {
       enum: ['opening', 'open', 'closing', 'sealed', 'refunded', 'failed'],
     })
@@ -99,18 +102,18 @@ export const channels = sqliteTable(
     openTx: text('open_tx'),
     closeTx: text('close_tx'),
     refundTx: text('refund_tx'),
-    gracePeriod: integer('grace_period'),
-    openedAt: integer('opened_at').notNull(),
-    lastVoucherAt: integer('last_voucher_at'),
-    closedAt: integer('closed_at'),
+    gracePeriod: bigint('grace_period', { mode: 'number' }),
+    openedAt: millis('opened_at').notNull(),
+    lastVoucherAt: millis('last_voucher_at'),
+    closedAt: millis('closed_at'),
   },
   (t) => [index('channels_agent_idx').on(t.agentId), index('channels_status_idx').on(t.status)],
 )
 
-export const vouchers = sqliteTable(
+export const vouchers = pgTable(
   'vouchers',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
+    id: serial('id').primaryKey(),
     /** session id + cumulative amount: retries of the same voucher collapse to one row. */
     idempotencyKey: text('idempotency_key').notNull(),
     /** Optional agent-supplied request id; a retried request returns the original result. */
@@ -119,19 +122,19 @@ export const vouchers = sqliteTable(
     agentId: text('agent_id').notNull(),
     taskId: text('task_id').notNull(),
     vendorId: text('vendor_id').notNull(),
-    cumulativeAmount: integer('cumulative_amount').notNull(),
-    delta: integer('delta').notNull(),
-    unitCount: integer('unit_count').notNull(),
-    unitPrice: integer('unit_price').notNull(),
+    cumulativeAmount: money('cumulative_amount').notNull(),
+    delta: money('delta').notNull(),
+    unitCount: bigint('unit_count', { mode: 'number' }).notNull(),
+    unitPrice: money('unit_price').notNull(),
     verdict: text('verdict', { enum: ['signed', 'blocked'] }).notNull(),
     ruleTriggered: text('rule_triggered'),
     reason: text('reason'),
     /** base58 Ed25519 signature over the 50-byte voucher; null when blocked. */
     signature: text('signature'),
     responseStatus: text('response_status', { enum: ['ok', 'error', 'timeout', 'empty'] }),
-    latencyMs: integer('latency_ms'),
-    ts: integer('ts').notNull(),
-    batchId: integer('batch_id'),
+    latencyMs: bigint('latency_ms', { mode: 'number' }),
+    ts: millis('ts').notNull(),
+    batchId: bigint('batch_id', { mode: 'number' }),
   },
   (t) => [
     uniqueIndex('vouchers_idem_idx').on(t.idempotencyKey),
@@ -142,8 +145,8 @@ export const vouchers = sqliteTable(
   ],
 )
 
-export const challengeChecks = sqliteTable('challenge_checks', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const challengeChecks = pgTable('challenge_checks', {
+  id: serial('id').primaryKey(),
   agentId: text('agent_id').notNull(),
   vendorId: text('vendor_id'),
   endpoint: text('endpoint').notNull(),
@@ -152,33 +155,33 @@ export const challengeChecks = sqliteTable('challenge_checks', {
   mintExpected: text('mint_expected'),
   mintOffered: text('mint_offered'),
   programId: text('program_id'),
-  priceOffered: integer('price_offered'),
-  simulationOk: integer('simulation_ok', { mode: 'boolean' }),
+  priceOffered: money('price_offered'),
+  simulationOk: boolean('simulation_ok'),
   verdict: text('verdict').notNull(),
   reason: text('reason').notNull(),
-  ts: integer('ts').notNull(),
+  ts: millis('ts').notNull(),
 })
 
-export const batches = sqliteTable('batches', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const batches = pgTable('batches', {
+  id: serial('id').primaryKey(),
   merkleRoot: text('merkle_root').notNull(),
-  voucherCount: integer('voucher_count').notNull(),
-  firstVoucherId: integer('first_voucher_id').notNull(),
-  lastVoucherId: integer('last_voucher_id').notNull(),
+  voucherCount: bigint('voucher_count', { mode: 'number' }).notNull(),
+  firstVoucherId: bigint('first_voucher_id', { mode: 'number' }).notNull(),
+  lastVoucherId: bigint('last_voucher_id', { mode: 'number' }).notNull(),
   status: text('status', { enum: ['pending', 'anchored', 'failed'] })
     .notNull()
     .default('pending'),
   txSignature: text('tx_signature'),
-  createdAt: integer('created_at').notNull(),
-  anchoredAt: integer('anchored_at'),
+  createdAt: millis('created_at').notNull(),
+  anchoredAt: millis('anchored_at'),
 })
 
 /** Append-only audit log: policy changes, kills, opens, closes, refunds, sweeps, anchors. */
-export const events = sqliteTable(
+export const events = pgTable(
   'events',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    ts: integer('ts').notNull(),
+    id: serial('id').primaryKey(),
+    ts: millis('ts').notNull(),
     type: text('type').notNull(),
     agentId: text('agent_id'),
     channelId: text('channel_id'),

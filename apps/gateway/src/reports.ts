@@ -1,5 +1,6 @@
 import { address } from '@solana/kit'
 import { type LedgerDb, type ReconcileStatus, reconcileChannel, schema, vendorScores } from '@tabula/ledger'
+import { desc, eq, gte, inArray } from '@tabula/ledger/sql'
 import {
   type ClusterConfig,
   explorerAddressUrl,
@@ -7,7 +8,6 @@ import {
   fetchChannelView,
   type SolanaRpc,
 } from '@tabula/solana'
-import { desc, eq, gte, inArray } from 'drizzle-orm'
 
 export interface ReconcileRow {
   readonly sessionId: string

@@ -1,4 +1,5 @@
 import { type LedgerDb, schema } from '@tabula/ledger'
+import { and, desc, eq, gte } from '@tabula/ledger/sql'
 import {
   type AgentStatus,
   compilePolicy,
@@ -11,7 +12,6 @@ import {
   pruneHistory,
   type SpendEvent,
 } from '@tabula/policy'
-import { and, desc, eq, gte } from 'drizzle-orm'
 import { type Approval, issueApproval } from './custody.js'
 import type { EventBus } from './events.js'
 

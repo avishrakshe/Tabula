@@ -36,7 +36,8 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): GatewayConf
   return {
     port: num('TABULA_GATEWAY_PORT', 4800),
     host: env.TABULA_GATEWAY_HOST || '127.0.0.1',
-    dbPath: env.TABULA_DB_PATH || join(keysDir(), '..', 'data', 'tabula.sqlite'),
+    // a postgres:// URL (Supabase), or a directory for the embedded PGlite database
+    dbPath: env.DATABASE_URL || env.TABULA_DB_PATH || join(keysDir(), '..', 'data', 'tabula-pg'),
     cluster,
     mint,
     adminToken: env.TABULA_ADMIN_TOKEN || 'tabula-demo-admin',

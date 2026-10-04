@@ -1,5 +1,5 @@
-import { type LedgerDb, schema } from '@tabula/ledger'
-import { and, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { first, type LedgerDb, schema } from '@tabula/ledger'
+import { and, desc, eq, inArray, isNotNull, or, sql } from '@tabula/ledger/sql'
 import type { RegistryVendor } from './challenge.js'
 import { sha256Hex } from './util.js'
 
@@ -9,15 +9,16 @@ export class Store {
 
   // ---- agents ----------------------------------------------------------------------------
   async agentByApiKey(apiKey: string): Promise<schema.AgentRow | undefined> {
-    return this.db
-      .select()
-      .from(schema.agents)
-      .where(eq(schema.agents.apiKeyHash, sha256Hex(apiKey)))
-      .get()
+    return first(
+      this.db
+        .select()
+        .from(schema.agents)
+        .where(eq(schema.agents.apiKeyHash, sha256Hex(apiKey))),
+    )
   }
 
   async agent(id: string): Promise<schema.AgentRow | undefined> {
-    return this.db.select().from(schema.agents).where(eq(schema.agents.id, id)).get()
+    return first(this.db.select().from(schema.agents).where(eq(schema.agents.id, id)))
   }
 
   async agents(): Promise<schema.AgentRow[]> {
@@ -30,7 +31,7 @@ export class Store {
 
   // ---- vendors ---------------------------------------------------------------------------
   async vendor(id: string): Promise<(RegistryVendor & schema.VendorRow) | undefined> {
-    return this.db.select().from(schema.vendors).where(eq(schema.vendors.id, id)).get()
+    return first(this.db.select().from(schema.vendors).where(eq(schema.vendors.id, id)))
   }
 
   async vendors(): Promise<schema.VendorRow[]> {
@@ -52,7 +53,7 @@ export class Store {
   }
 
   async task(id: string): Promise<schema.TaskRow | undefined> {
-    return this.db.select().from(schema.tasks).where(eq(schema.tasks.id, id)).get()
+    return first(this.db.select().from(schema.tasks).where(eq(schema.tasks.id, id)))
   }
 
   async completeTask(id: string, status: 'completed' | 'failed'): Promise<void> {
@@ -69,7 +70,7 @@ export class Store {
   }
 
   async channel(id: string): Promise<schema.ChannelRow | undefined> {
-    return this.db.select().from(schema.channels).where(eq(schema.channels.id, id)).get()
+    return first(this.db.select().from(schema.channels).where(eq(schema.channels.id, id)))
   }
 
   async channels(statuses?: schema.ChannelRow['status'][]): Promise<schema.ChannelRow[]> {
@@ -92,22 +93,24 @@ export class Store {
   }
 
   async voucherByRequestId(channelId: string, requestId: string): Promise<schema.VoucherRow | undefined> {
-    return this.db
-      .select()
-      .from(schema.vouchers)
-      .where(and(eq(schema.vouchers.channelId, channelId), eq(schema.vouchers.requestId, requestId)))
-      .get()
+    return first(
+      this.db
+        .select()
+        .from(schema.vouchers)
+        .where(and(eq(schema.vouchers.channelId, channelId), eq(schema.vouchers.requestId, requestId))),
+    )
   }
 
   /** The highest signed voucher on a channel (the one a cooperative close replays). */
   async lastSignedVoucher(channelId: string): Promise<schema.VoucherRow | undefined> {
-    return this.db
-      .select()
-      .from(schema.vouchers)
-      .where(and(eq(schema.vouchers.channelId, channelId), eq(schema.vouchers.verdict, 'signed')))
-      .orderBy(desc(schema.vouchers.cumulativeAmount))
-      .limit(1)
-      .get()
+    return first(
+      this.db
+        .select()
+        .from(schema.vouchers)
+        .where(and(eq(schema.vouchers.channelId, channelId), eq(schema.vouchers.verdict, 'signed')))
+        .orderBy(desc(schema.vouchers.cumulativeAmount))
+        .limit(1),
+    )
   }
 
   /** Signed rows whose vendor call never finished (gateway crashed mid-call): mark them timed out. */

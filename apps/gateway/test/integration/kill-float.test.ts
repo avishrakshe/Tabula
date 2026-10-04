@@ -6,8 +6,8 @@
  */
 import { address } from '@solana/kit'
 import { reconcileChannel, schema } from '@tabula/ledger'
+import { eq } from '@tabula/ledger/sql'
 import { fetchChannelView } from '@tabula/solana'
-import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type Harness, sandboxReachable, startHarness } from './harness.js'
 

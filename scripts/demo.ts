@@ -48,7 +48,7 @@ const base = configFromEnv()
 const dataDir = dirname(base.treasuryFile)
 const config = {
   ...base,
-  dbPath: process.env.TABULA_DB_PATH || join(dataDir, 'demo.sqlite'),
+  dbPath: process.env.TABULA_DB_PATH || join(dataDir, 'demo-pg'),
   anchorEvery: 40,
   anchorIntervalMs: 0,
   idleAfterMs: Math.round(60_000 * SCALE),
@@ -67,7 +67,10 @@ const sleepUntil = async (seconds: number) => {
 
 async function main() {
   if (!loadTreasuryState(config.treasuryFile)) throw new Error('no treasury yet: run `pnpm setup` first')
-  for (const suffix of ['', '-wal', '-shm']) rmSync(`${config.dbPath}${suffix}`, { force: true })
+  // every run starts from an empty ledger (a PGlite directory locally; never a remote database)
+  if (/^postgres(ql)?:\/\//.test(config.dbPath))
+    throw new Error('pnpm demo resets its ledger: use a local path')
+  rmSync(config.dbPath, { recursive: true, force: true })
   mkdirSync(dataDir, { recursive: true })
   writeFileSync(eventsFile, '')
 

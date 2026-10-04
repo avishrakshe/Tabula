@@ -11,7 +11,8 @@
     "./canonical": "./src/canonical.ts",
     "./reconcile": "./src/reconcile.ts",
     "./scores": "./src/scores.ts",
-    "./schema": "./src/schema.ts"
+    "./schema": "./src/schema.ts",
+    "./sql": "./src/sql.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -19,8 +20,10 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@noble/hashes": "2.4.0",
-    "drizzle-orm": "0.45.3"
+    "drizzle-orm": "0.45.3",
+    "postgres": "3.4.9"
   },
   "devDependencies": {
     "drizzle-kit": "0.31.11",

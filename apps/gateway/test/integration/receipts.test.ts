@@ -3,7 +3,7 @@
  * verification against the memo, tamper detection, reconciliation and vendor scorecards, CSV export.
  */
 import { merkleRoot, schema } from '@tabula/ledger'
-import { eq } from 'drizzle-orm'
+import { eq } from '@tabula/ledger/sql'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type Harness, sandboxReachable, startHarness } from './harness.js'
 

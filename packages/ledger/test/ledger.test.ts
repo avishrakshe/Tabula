@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { canonicalize, canonicalVoucher } from '../src/canonical.js'
-import { openLedger } from '../src/db.js'
+import { first, openLedger, withLock } from '../src/db.js'
 import { formatBatchMemo, parseBatchMemo } from '../src/memo.js'
 import { buildLevels, fromHex, hashLeaf, merkleProof, merkleRoot, toHex, verifyProof } from '../src/merkle.js'
 import { reconcileChannel } from '../src/reconcile.js'
@@ -250,7 +250,8 @@ describe('vendorScores', () => {
   })
 })
 
-describe('openLedger (node:sqlite + drizzle)', () => {
+// a cold PGlite (WASM Postgres) start plus migrations takes a few seconds
+describe('openLedger (Postgres via PGlite + drizzle)', { timeout: 30_000 }, () => {
   it('migrates, writes, reads back and enforces voucher idempotency', async () => {
     const ledger = await openLedger(':memory:')
     const row = {
@@ -274,18 +275,45 @@ describe('openLedger (node:sqlite + drizzle)', () => {
     const got = await ledger.db.select().from(vouchers).where(eq(vouchers.channelId, 'sess-1'))
     expect(got).toHaveLength(1)
     expect(got[0]).toMatchObject({ id: 1, verdict: 'signed', cumulativeAmount: 1000, batchId: null })
-    const one = await ledger.db.select().from(vouchers).where(eq(vouchers.id, 1)).get()
+    const one = await first(ledger.db.select().from(vouchers).where(eq(vouchers.id, 1)))
     expect(one?.signature).toBe('abc')
-    const none = await ledger.db.select().from(vouchers).where(eq(vouchers.id, 99)).get()
+    const none = await first(ledger.db.select().from(vouchers).where(eq(vouchers.id, 99)))
     expect(none).toBeUndefined()
-    ledger.close()
+    // amounts are bigint columns read back as exact JS numbers
+    await ledger.db
+      .insert(vouchers)
+      .values({ ...row, idempotencyKey: 'big', cumulativeAmount: 9_000_000_000_000 })
+    const big = await first(ledger.db.select().from(vouchers).where(eq(vouchers.idempotencyKey, 'big')))
+    expect(big?.cumulativeAmount).toBe(9_000_000_000_000)
+    await ledger.close()
   })
 
-  it('reopens an existing file without re-running migrations and keeps rows', async () => {
+  it('withLock runs the callback in a transaction and returns its value', async () => {
+    const ledger = await openLedger(':memory:')
+    const order: string[] = []
+    const run = (tag: string) =>
+      withLock(ledger.db, 'agent:research-01', async (tx) => {
+        order.push(`${tag}:start`)
+        await tx.select().from(vouchers)
+        order.push(`${tag}:end`)
+        return tag
+      })
+    expect(await Promise.all([run('a'), run('b')])).toEqual(['a', 'b'])
+    // the two critical sections never interleave
+    expect(order.join(' ')).toMatch(/^(a:start a:end b:start b:end|b:start b:end a:start a:end)$/)
+    await expect(
+      withLock(ledger.db, 'k', async () => {
+        throw new Error('boom')
+      }),
+    ).rejects.toThrow('boom')
+    await ledger.close()
+  })
+
+  it('reopens an existing database without re-running migrations and keeps rows', async () => {
     const { mkdtempSync } = await import('node:fs')
     const { tmpdir } = await import('node:os')
     const { join } = await import('node:path')
-    const file = join(mkdtempSync(join(tmpdir(), 'tabula-ledger-')), 'sub', 'ledger.sqlite')
+    const file = join(mkdtempSync(join(tmpdir(), 'tabula-ledger-')), 'sub', 'ledger-pg')
     const a = await openLedger(file)
     await a.db.insert(vouchers).values({
       idempotencyKey: 'k',
@@ -300,9 +328,9 @@ describe('openLedger (node:sqlite + drizzle)', () => {
       verdict: 'blocked',
       ts: 1,
     })
-    a.close()
+    await a.close()
     const b = await openLedger(file)
     expect(await b.db.select().from(vouchers)).toHaveLength(1)
-    b.close()
+    await b.close()
   })
 })

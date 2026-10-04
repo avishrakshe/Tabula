@@ -8,12 +8,14 @@
 import type { KeyPairSigner } from '@solana/kit'
 import {
   canonicalVoucher,
+  first,
   formatBatchMemo,
   type LedgerDb,
   merkleRoot,
   parseBatchMemo,
   schema,
 } from '@tabula/ledger'
+import { and, asc, eq, gt, isNull, sql } from '@tabula/ledger/sql'
 import {
   buildMemoInstruction,
   type ClusterConfig,
@@ -22,7 +24,6 @@ import {
   type SolanaRpc,
   sendAndConfirm,
 } from '@tabula/solana'
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
 import type { EventBus } from './events.js'
 import { KeyedMutex } from './util.js'
 
@@ -166,7 +167,7 @@ export class Anchorer {
 
   /** Recomputes the root from the ledger and compares it with the memo onchain. */
   async verify(batchId: number): Promise<BatchVerification> {
-    const batch = await this.db.select().from(schema.batches).where(eq(schema.batches.id, batchId)).get()
+    const batch = await first(this.db.select().from(schema.batches).where(eq(schema.batches.id, batchId)))
     if (!batch) throw new Error(`no batch ${batchId}`)
     const rows = await this.batchRows(batchId)
     const recomputedRoot = rows.length ? merkleRoot(rows) : ''

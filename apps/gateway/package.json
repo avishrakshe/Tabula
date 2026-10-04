@@ -21,7 +21,6 @@
     "@tabula/ledger": "workspace:*",
     "@tabula/policy": "workspace:*",
     "@tabula/solana": "workspace:*",
-    "drizzle-orm": "0.45.3",
     "fastify": "5.12.5",
     "mppx": "0.8.15",
     "zod": "4.6.5"
