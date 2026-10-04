@@ -81,6 +81,15 @@ const STEPS = [
   { id: 'finish', at: 95_000 },
 ] as const
 
+/** Escrow per channel (micro-dollars). */
+const DEPOSITS = { 'research-01': 60_000, 'coder-01': 60_000, 'rogue-01': 100_000 } as const
+/** Allowance one run can pull: coder-01 opens a second channel after the mirror is refused. */
+const RUN_NEEDS = {
+  'research-01': BigInt(DEPOSITS['research-01']),
+  'coder-01': 2n * BigInt(DEPOSITS['coder-01']),
+  'rogue-01': BigInt(DEPOSITS['rogue-01']),
+}
+
 function initialState(vendorBase: string): RunState {
   const agent = (id: string, vendorId: string, intervalMs: number, deposit: number): AgentState => ({
     id,
@@ -98,10 +107,13 @@ function initialState(vendorBase: string): RunState {
   })
   return {
     vendorBase,
+    // A run spends about $0.02 per channel, and every deposit counts against the agent's $5/day onchain
+    // allowance, so deposits stay small: coder-01 opens two channels, and ~40 runs a day fit. rogue-01's
+    // must stay above $0.06, so that the velocity rule stops it, not an empty channel.
     agents: [
-      agent('research-01', 'inference-a', 1_500, 120_000),
-      agent('coder-01', 'inference-b', 800, 150_000),
-      agent('rogue-01', 'inference-b', 2_500, 150_000),
+      agent('research-01', 'inference-a', 1_500, DEPOSITS['research-01']),
+      agent('coder-01', 'inference-b', 800, DEPOSITS['coder-01']),
+      agent('rogue-01', 'inference-b', 2_500, DEPOSITS['rogue-01']),
     ],
     done: [],
   }
@@ -197,8 +209,7 @@ async function checkFunds(gw: Gateway): Promise<string | null> {
     if (vault && (await ownerTokenBalance(rpc, vault as never, gw.config.mint as never)) < 2_000_000n)
       return 'the treasury vault is low on test USDC'
   }
-  const need = { 'research-01': 120_000n, 'coder-01': 300_000n, 'rogue-01': 150_000n } as const
-  for (const [agentId, amount] of Object.entries(need)) {
+  for (const [agentId, amount] of Object.entries(RUN_NEEDS)) {
     const ceiling = await gw.treasury.remainingCeiling(agentId)
     if (ceiling !== null && ceiling < amount) return `${agentId}'s onchain allowance is spent for today`
   }

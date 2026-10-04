@@ -42,31 +42,14 @@ import {
   explorerTxUrl,
   keysDir,
   loadOrCreateKeypair,
-  mintTestTokens,
-  ownerTokenBalance,
   type SolanaRpc,
   sendAndConfirm,
   setSolBalance,
   solBalance,
-  transferSolIx,
 } from '@tabula/solana'
 import { DEMO_VENDORS } from '@tabula/vendor-mock'
 import { DEMO_AGENTS, GLOBAL_POLICY, registerDemoVendors } from './lib/demo-config.js'
-
-const SOL = 1_000_000_000n
-const VAULT_USDC = 1_000_000_000n // $1,000
-/** Devnet SOL each wallet is topped up to from the operator (fees and rent; vendors sponsor opens). */
-const DEVNET_SOL_TARGETS: readonly (readonly [string, bigint])[] = [
-  ['tabula-admin', SOL / 5n],
-  ['vendor-inference-a-operator', (SOL * 3n) / 10n],
-  ['vendor-inference-b-operator', (SOL * 3n) / 10n],
-  ['vendor-mirror-operator', SOL / 10n],
-  // the payee signs and pays for the vendor's own settle_and_seal + distribute
-  ['vendor-inference-a-payee', SOL / 20n],
-  ['vendor-inference-b-payee', SOL / 20n],
-  ['vendor-mirror-payee', SOL / 50n],
-]
-const OPERATOR_MIN = (SOL * 6n) / 5n
+import { OPERATOR_MIN, refillVault, SOL, topUpWallets, VAULT_USDC } from './lib/devnet-funds.js'
 
 const log = (cluster: ClusterConfig, msg: string, tx?: string) =>
   console.log(tx ? `${msg}\n    ${explorerTxUrl(cluster, tx)}` : msg)
@@ -84,16 +67,13 @@ async function prepareDevnet(cluster: ClusterConfig, rpc: SolanaRpc): Promise<Ad
     )
   }
   log(cluster, `Tabula operator ${operator.address}: ${Number(balance) / 1e9} SOL`)
-  const ixs = []
-  for (const [name, target] of DEVNET_SOL_TARGETS) {
-    const k = await loadOrCreateKeypair(name)
-    const have = await solBalance(rpc, k.address)
-    if (have < (target * 4n) / 5n) ixs.push(transferSolIx(operator, k.address, target - have))
-  }
-  if (ixs.length) {
-    const tx = await sendAndConfirm(rpc, { feePayer: operator, instructions: ixs })
-    log(cluster, `Topped up ${ixs.length} wallet(s) from the operator (admin, vendor fee payers)`, tx)
-  }
+  const topUp = await topUpWallets(rpc, operator)
+  if (topUp.wallets)
+    log(
+      cluster,
+      `Topped up ${topUp.wallets} wallet(s) from the operator (admin, vendor fee payers)`,
+      topUp.signature,
+    )
   const mintKey = await loadOrCreateKeypair('devnet-test-usdc-mint')
   const created = await ensureTestMint(rpc, operator, mintKey, operator.address)
   log(
@@ -152,24 +132,10 @@ async function main() {
     // no cheatcodes: mint the vault its test USDC (creating its token account, which the
     // SubscriptionAuthority needs), and give it SOL for the accounts it pays rent on
     prepareVault: async (vault) => {
-      const held = await ownerTokenBalance(rpc, vault, mint)
-      if (held < VAULT_USDC) {
-        const tx = await mintTestTokens(rpc, {
-          payer: operator,
-          authority: operator,
-          mint,
-          owner: vault,
-          amount: VAULT_USDC - held,
-        })
-        log(cluster, `Minted the vault ${Number(VAULT_USDC - held) / 1e6} test USDC`, tx)
-      }
-      if ((await solBalance(rpc, vault)) < SOL / 25n) {
-        const tx = await sendAndConfirm(rpc, {
-          feePayer: operator,
-          instructions: [transferSolIx(operator, vault, SOL / 20n)],
-        })
-        log(cluster, 'Gave the vault 0.05 SOL for the accounts it pays rent on', tx)
-      }
+      const r = await refillVault(rpc, operator, mint, vault)
+      if (r.minted) log(cluster, `Minted the vault ${Number(r.minted) / 1e6} test USDC`, r.mintSignature)
+      if (r.solSignature)
+        log(cluster, 'Gave the vault 0.05 SOL for the accounts it pays rent on', r.solSignature)
     },
     log: (m, tx) => log(cluster, m, tx),
   })
