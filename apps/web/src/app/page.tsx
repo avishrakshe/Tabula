@@ -22,6 +22,7 @@ const BUILT_ON = [
   'Squads v4',
   'Subscriptions & Allowances',
   'Memo program',
+  'Solana devnet',
   'Solana Payment Sandbox',
 ]
 
@@ -102,9 +103,16 @@ function FeatureRow({
 export default function Home() {
   const f = runFacts()
   const lossy = f.scores.find((s) => s.cheaper) ?? null
-  const runNote = `From a recorded run on the Solana Payment Sandbox (a mainnet clone with test balances), ${new Date(
-    f.recordedAt,
-  ).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.`
+  const where =
+    f.cluster === 'devnet'
+      ? 'Solana devnet (test USDC, no real funds)'
+      : 'the Solana Payment Sandbox (a mainnet clone with test balances)'
+  const runNote = `From a recorded run on ${where}, ${new Date(f.recordedAt).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })}.`
 
   return (
     <div className="min-h-screen bg-ink text-paper">
