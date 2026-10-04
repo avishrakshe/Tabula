@@ -201,5 +201,12 @@ _Last updated 2026-10-04._
 
 ## Next
 
-1. **M6/M7:** freeze, `docs/PITCH.md`, README, Vercel deploy (the build copies `/gpu` itself), demo
-   video. Then link the video and the Colosseum submission from the site.
+1. **Ship:**
+   - **Done (2026-10-04):** README (pitch, architecture diagram, quickstart, deploy steps, real versus
+     mocked), `docs/PITCH.md` and `docs/VIDEO.md` (shot list). A fresh clone of `main` installs with
+     `--frozen-lockfile` and builds the site.
+   - **Waiting on the founders:**
+     - the Vercel deploy (needs their account; settings in the README);
+     - recording the video;
+     - the PITCH fill-ins: traction, founder story, prices, links;
+     - then linking the video and the Colosseum submission from the site footer.

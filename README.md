@@ -140,6 +140,19 @@ The sandbox integration tests cover:
 - exact vault accounting;
 - receipts, and detection of an edited ledger row.
 
+## Deploy (Vercel)
+
+The site and the dashboard's replay mode are static and need no gateway.
+
+1. Import the GitHub repo in Vercel and set **Root Directory** to `apps/web`. The framework (Next.js) is
+   detected, and the workspace installs from the repo root.
+2. Add the environment variable `ENABLE_EXPERIMENTAL_COREPACK=1`, so Vercel uses the pinned
+   `pnpm@11.25.0`.
+3. Deploy. `pnpm build` copies detect-gpu's benchmark tables into `public/gpu` and runs `next build`.
+
+A hosted dashboard replays the recorded run. To point it at a live gateway, set
+`NEXT_PUBLIC_TABULA_GATEWAY_URL`, or use **Connect live** in the dashboard header.
+
 ## What is real and what is mocked
 
 - **Real:**
