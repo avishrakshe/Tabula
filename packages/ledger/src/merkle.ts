@@ -10,7 +10,9 @@
  * 0x00/0x01 domain tags stop a leaf from being reinterpreted as an inner node.
  */
 import { sha256 } from '@noble/hashes/sha2.js'
-import { canonicalize } from './canonical.js'
+// extensionless on purpose: this module is also bundled into the dashboard by Turbopack,
+// which does not map `.js` specifiers to `.ts` sources in workspace packages
+import { canonicalize } from './canonical'
 
 const LEAF = Uint8Array.of(0x00)
 const NODE = Uint8Array.of(0x01)

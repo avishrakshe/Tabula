@@ -1,26 +1,132 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Dark mode follows the OS unless the viewer picked a theme (data-theme on <html> wins both ways). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * Tabula design tokens (Paymark-style fintech system, adapted).
+ * wax = primary/live, ink/night/paper = surfaces, sever = blocked/killed ONLY (always with icon + word),
+ * matched = reconciled/healthy ONLY.
+ */
+@theme {
+  --color-wax: #ff8975;
+  --color-wax-deep: #e5604a;
+  --color-ink: #0e0e0e;
+  --color-night: #141414;
+  --color-night-2: #1c1c1c;
+  --color-paper: #ffffff;
+  --color-gray-1: #acafb9;
+  --color-gray-2: #d5d5d5;
+  --color-gray-3: #606165;
+  --color-sever: #d92d20;
+  --color-matched: #1f9d6b;
+  --color-amber: #b7791f;
+
+  /* semantic, theme-aware (see :root / [data-theme=dark] below) */
+  --color-bg: var(--tb-bg);
+  --color-surface: var(--tb-surface);
+  --color-surface-2: var(--tb-surface-2);
+  --color-line: var(--tb-line);
+  --color-fg: var(--tb-fg);
+  --color-fg-2: var(--tb-fg-2);
+  --color-muted: var(--tb-muted);
+
+  /* validated chart palette (dataviz reference slots 1-3, checked on #fff and #141414) */
+  --color-series-1: var(--tb-series-1);
+  --color-series-2: var(--tb-series-2);
+  --color-series-3: var(--tb-series-3);
+
+  --font-sans:
+    var(--font-inter-tight), "Inter Tight", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --text-h1: 4.375rem;
+  --text-h1--line-height: 1.1;
+  --text-h2: 3rem;
+  --text-h2--line-height: 1.2;
+  --text-h3: 2rem;
+  --text-h3--line-height: 1.1;
+  --text-h4: 1.5rem;
+  --text-h4--line-height: 1.2;
+  --text-h5: 1.25rem;
+  --text-h5--line-height: 1.2;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.4;
+
+  --radius-frame: 22px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  color-scheme: light;
+  --tb-bg: #f7f7f5;
+  --tb-surface: #ffffff;
+  --tb-surface-2: #f3f3f1;
+  --tb-line: #d5d5d5;
+  --tb-fg: #0e0e0e;
+  --tb-fg-2: #606165;
+  --tb-muted: #8a8c93;
+  --tb-series-1: #2a78d6;
+  --tb-series-2: #eb6834;
+  --tb-series-3: #1baf7a;
+  --tb-grid: #ececea;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --tb-bg: #0e0e0e;
+    --tb-surface: #141414;
+    --tb-surface-2: #1c1c1c;
+    --tb-line: #2c2c2c;
+    --tb-fg: #ffffff;
+    --tb-fg-2: #acafb9;
+    --tb-muted: #8a8c93;
+    --tb-series-1: #3987e5;
+    --tb-series-2: #d95926;
+    --tb-series-3: #199e70;
+    --tb-grid: #242424;
   }
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --tb-bg: #0e0e0e;
+  --tb-surface: #141414;
+  --tb-surface-2: #1c1c1c;
+  --tb-line: #2c2c2c;
+  --tb-fg: #ffffff;
+  --tb-fg-2: #acafb9;
+  --tb-muted: #8a8c93;
+  --tb-series-1: #3987e5;
+  --tb-series-2: #d95926;
+  --tb-series-3: #199e70;
+  --tb-grid: #242424;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--tb-bg);
+  color: var(--tb-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* every amount in a column aligns */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-wax);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
