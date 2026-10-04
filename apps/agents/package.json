@@ -1,0 +1,14 @@
+{
+  "name": "@tabula/agents",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scripted demo agents (research, coding, rogue) that pay through the Tabula gateway with API keys only.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
