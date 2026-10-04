@@ -30,6 +30,9 @@ next-env.d.ts
 *.sqlite-shm
 *.db
 
+# detect-gpu benchmark tables, copied into the site at build time
+apps/web/public/gpu/
+
 # vendored upstream sources cloned for reading (see docs/FACTS.md)
 .vendor/
 

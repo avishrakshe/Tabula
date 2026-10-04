@@ -109,9 +109,32 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* no one-word last lines */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
+}
+
 /* every amount in a column aligns */
 .num {
   font-variant-numeric: tabular-nums;
+}
+
+/* landing page "built on" strip: the list is doubled, so -50% loops seamlessly */
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee {
+  mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+}
+.marquee-track {
+  animation: marquee 45s linear infinite;
 }
 
 :focus-visible {
@@ -128,5 +151,8 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  .marquee-track {
+    animation: none;
   }
 }

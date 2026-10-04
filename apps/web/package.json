@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "next build",
+    "build": "node scripts/copy-gpu-benchmarks.mjs && next build",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit"
   },
