@@ -1,5 +1,5 @@
-import type { Decision, VoucherRequest } from './evaluate.js'
-import { formatUsd } from './money.js'
+import type { Decision, VoucherRequest } from './evaluate'
+import { formatUsd } from './money'
 
 /**
  * Plain-language explanation of a decision, e.g.

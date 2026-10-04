@@ -9,7 +9,7 @@ import {
   selectSolanaSessionChallengeFromResponse,
   serializeSessionCredential,
 } from '@solana/mpp/client'
-import { TimeoutError, withTimeout } from './util.js'
+import { TimeoutError, withTimeout } from './util'
 
 export type Outcome = 'ok' | 'error' | 'empty' | 'timeout'
 

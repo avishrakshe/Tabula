@@ -17,7 +17,7 @@ import {
   type FixedSizeDecoder,
   type FixedSizeEncoder,
 } from "@solana/kit";
-import { getU16Decoder, getU16Encoder } from "../../safe-codecs.js";
+import { getU16Decoder, getU16Encoder } from "../../safe-codecs";
 
 export type DistributionEntry = { recipient: Address; bps: number };
 

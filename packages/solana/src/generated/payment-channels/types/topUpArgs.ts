@@ -14,7 +14,7 @@ import {
   type FixedSizeDecoder,
   type FixedSizeEncoder,
 } from "@solana/kit";
-import { getU64Decoder, getU64Encoder } from "../../safe-codecs.js";
+import { getU64Decoder, getU64Encoder } from "../../safe-codecs";
 
 export type TopUpArgs = { amount: bigint };
 

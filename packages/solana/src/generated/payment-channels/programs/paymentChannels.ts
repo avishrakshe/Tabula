@@ -30,7 +30,7 @@ import {
   type SelfFetchFunctions,
   type SelfPlanAndSendFunctions,
 } from "@solana/program-client-core";
-import { getU8Encoder } from "../../safe-codecs.js";
+import { getU8Encoder } from "../../safe-codecs";
 import { getChannelCodec, type Channel, type ChannelArgs } from "../accounts";
 import {
   getDistributeInstructionAsync,

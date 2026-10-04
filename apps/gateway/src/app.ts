@@ -1,13 +1,13 @@
 import cors from '@fastify/cors'
 import { first, schema } from '@tabula/ledger'
-import { desc, eq } from '@tabula/ledger/sql'
-import { explorerTxUrl } from '@tabula/solana'
+import { and, desc, eq, gt } from '@tabula/ledger/sql'
+import { explorerTxUrl, publicRpcUrl } from '@tabula/solana'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { z } from 'zod'
-import type { GatewayEvent } from './events.js'
-import type { Gateway } from './gateway.js'
-import { exportCsv, overview, reconcileAll, scorecards } from './reports.js'
-import { GatewayError } from './sessions.js'
+import type { GatewayEvent } from './events'
+import type { Gateway } from './gateway'
+import { exportCsv, overview, reconcileAll, scorecards } from './reports'
+import { GatewayError } from './sessions'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -88,7 +88,7 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
   app.get('/health', async () => ({
     ok: true,
     cluster: gw.config.cluster.name,
-    rpc: gw.config.cluster.rpcUrl,
+    rpc: publicRpcUrl(gw.config.cluster.rpcUrl), // public: never the provider's API key
     mint: gw.config.mint,
     treasury: gw.treasury.kind,
     openSessions: (await gw.store.channels(['open'])).length,
@@ -195,8 +195,11 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
     })
   })
 
-  app.get('/v1/agents', { preHandler: requireAdmin }, async () => {
+  app.get('/v1/agents', { preHandler: requireAdmin }, async (req) => {
     const agents = await gw.store.agents()
+    // ?onchain=0 skips the allowance reads (two RPC calls per agent) for a dashboard polling often
+    if ((req.query as { onchain?: string }).onchain === '0')
+      return agents.map(({ apiKeyHash: _hidden, ...a }) => a)
     return Promise.all(
       agents.map(async ({ apiKeyHash: _hidden, ...a }) => {
         const allowance = await gw.treasury.allowance(a.id).catch(() => null)
@@ -226,21 +229,27 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
 
   app.get('/v1/vendors', { preHandler: requireAdmin }, async () => gw.store.vendors())
 
-  app.get<{ Querystring: { limit?: string; agentId?: string } }>(
-    '/v1/vouchers',
-    { preHandler: requireAdmin },
-    async (req) => {
-      const limit = Math.min(Number(req.query.limit ?? 200), 5000)
-      const q = gw.ledger.db.select().from(schema.vouchers)
-      const rows = req.query.agentId
-        ? await q
-            .where(eq(schema.vouchers.agentId, req.query.agentId))
-            .orderBy(desc(schema.vouchers.id))
-            .limit(limit)
-        : await q.orderBy(desc(schema.vouchers.id)).limit(limit)
-      return rows
-    },
-  )
+  // `after` returns only rows newer than that id (a dashboard polling instead of streaming)
+  const ListQuery = z.object({
+    limit: z.coerce.number().int().positive().optional(),
+    after: z.coerce.number().int().nonnegative().optional(),
+    agentId: z.string().min(1).optional(),
+  })
+
+  app.get('/v1/vouchers', { preHandler: requireAdmin }, async (req) => {
+    const q = ListQuery.parse(req.query)
+    return gw.ledger.db
+      .select()
+      .from(schema.vouchers)
+      .where(
+        and(
+          q.agentId ? eq(schema.vouchers.agentId, q.agentId) : undefined,
+          q.after !== undefined ? gt(schema.vouchers.id, q.after) : undefined,
+        ),
+      )
+      .orderBy(desc(schema.vouchers.id))
+      .limit(Math.min(q.limit ?? 200, 5000))
+  })
 
   app.get('/v1/channels', { preHandler: requireAdmin }, async () => gw.store.channels())
 
@@ -248,13 +257,15 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
     gw.ledger.db.select().from(schema.challengeChecks).orderBy(desc(schema.challengeChecks.id)).limit(200),
   )
 
-  app.get<{ Querystring: { limit?: string } }>('/v1/events', { preHandler: requireAdmin }, async (req) =>
-    gw.ledger.db
+  app.get('/v1/events', { preHandler: requireAdmin }, async (req) => {
+    const q = ListQuery.parse(req.query)
+    return gw.ledger.db
       .select()
       .from(schema.events)
+      .where(q.after !== undefined ? gt(schema.events.id, q.after) : undefined)
       .orderBy(desc(schema.events.id))
-      .limit(Math.min(Number(req.query.limit ?? 200), 2000)),
-  )
+      .limit(Math.min(q.limit ?? 200, 2000))
+  })
 
   // ---- policies --------------------------------------------------------------------------
   app.get('/v1/policies', { preHandler: requireAdmin }, async () => {
@@ -295,8 +306,8 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
     vaultBalance: (await gw.treasury.vaultBalance().catch(() => null))?.toString() ?? null,
   }))
 
-  app.get('/v1/reconcile', { preHandler: requireAdmin }, async () =>
-    reconcileAll(gw.ledger.db, gw.rpc, gw.config.cluster),
+  app.get('/v1/reconcile', { preHandler: requireAdmin }, async (req) =>
+    reconcileAll(gw.ledger.db, gw.rpc, gw.config.cluster, ListQuery.parse(req.query).limit),
   )
 
   app.get('/v1/scores', { preHandler: requireAdmin }, async () => scorecards(gw.ledger.db))

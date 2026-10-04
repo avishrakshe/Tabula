@@ -1,4 +1,4 @@
-import { GatewayClient, type SessionInfo } from './client.js'
+import { GatewayClient, type SessionInfo } from './client'
 
 export type AgentLog = (agentId: string, message: string) => void
 

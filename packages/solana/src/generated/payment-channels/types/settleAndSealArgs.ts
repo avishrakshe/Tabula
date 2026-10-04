@@ -14,7 +14,7 @@ import {
   type FixedSizeDecoder,
   type FixedSizeEncoder,
 } from "@solana/kit";
-import { getU8Decoder, getU8Encoder } from "../../safe-codecs.js";
+import { getU8Decoder, getU8Encoder } from "../../safe-codecs";
 
 export type SettleAndSealArgs = { hasVoucher: number };
 

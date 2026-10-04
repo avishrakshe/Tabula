@@ -39,6 +39,7 @@ import {
 } from '@tabula/gateway'
 import { schema } from '@tabula/ledger'
 import { formatUsd } from '@tabula/policy'
+import { publicRpcUrl } from '@tabula/solana'
 import { DEMO_VENDORS, startVendor } from '@tabula/vendor-mock'
 import { DEMO_AGENTS, GLOBAL_POLICY, registerDemoVendors } from './lib/demo-config.js'
 
@@ -272,7 +273,7 @@ async function main() {
   const replay = {
     meta: {
       cluster: config.cluster.name,
-      rpcUrl: config.cluster.rpcUrl,
+      rpcUrl: publicRpcUrl(config.cluster.rpcUrl),
       recordedAt: new Date(t0).toISOString(),
       durationMs: Date.now() - t0,
       vault: gw.treasury.vaultAddress,

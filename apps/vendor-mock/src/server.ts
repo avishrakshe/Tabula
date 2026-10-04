@@ -2,8 +2,8 @@ import type { KeyPairSigner } from '@solana/kit'
 import { Mppx, type SessionStore, session } from '@solana/mpp/server'
 import { type ClusterConfig, createRpc } from '@tabula/solana'
 import { Hono } from 'hono'
-import { pricePerCall, type VendorConfig } from './config.js'
-import { mulberry32 } from './rng.js'
+import { pricePerCall, type VendorConfig } from './config'
+import { mulberry32 } from './rng'
 
 export type Outcome = 'ok' | 'error' | 'empty' | 'timeout'
 

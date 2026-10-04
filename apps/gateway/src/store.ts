@@ -1,7 +1,7 @@
 import { first, type LedgerDb, schema } from '@tabula/ledger'
 import { and, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from '@tabula/ledger/sql'
-import type { RegistryVendor } from './challenge.js'
-import { sha256Hex } from './util.js'
+import type { RegistryVendor } from './challenge'
+import { sha256Hex } from './util'
 
 /** Thin typed queries over the ledger. All amounts are integer micros. */
 export class Store {

@@ -39,7 +39,7 @@ import {
   getU64Encoder,
   getU8Decoder,
   getU8Encoder,
-} from "../../safe-codecs.js";
+} from "../../safe-codecs";
 import {
   getSettlementWatermarksDecoder,
   getSettlementWatermarksEncoder,

@@ -13,7 +13,7 @@ import {
   INSTRUCTIONS_SYSVAR,
   RENT_SYSVAR,
   TOKEN_PROGRAM,
-} from './cluster.js'
+} from './cluster'
 import {
   type Channel,
   ChannelStatus,
@@ -26,10 +26,10 @@ import {
   getSettleInstruction,
   getTopUpInstruction,
   getWithdrawPayerInstruction,
-} from './generated/payment-channels/index.js'
-import type { SolanaRpc } from './rpc.js'
-import { ata } from './token.js'
-import { buildEd25519VoucherInstruction, type SignedVoucherBytes } from './voucher.js'
+} from './generated/payment-channels/index'
+import type { SolanaRpc } from './rpc'
+import { ata } from './token'
+import { buildEd25519VoucherInstruction, type SignedVoucherBytes } from './voucher'
 
 export type { Channel }
 export { ChannelStatus }

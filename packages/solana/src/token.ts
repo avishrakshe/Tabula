@@ -5,8 +5,8 @@ import {
   getCreateAssociatedTokenIdempotentInstructionAsync,
   getTransferCheckedInstruction,
 } from '@solana-program/token'
-import { TOKEN_PROGRAM } from './cluster.js'
-import type { SolanaRpc } from './rpc.js'
+import { TOKEN_PROGRAM } from './cluster'
+import type { SolanaRpc } from './rpc'
 
 export async function ata(
   owner: Address,
@@ -19,7 +19,9 @@ export async function ata(
 
 /** Token balance in base units; 0n when the account does not exist. */
 export async function tokenBalance(rpc: SolanaRpc, tokenAccount: Address): Promise<bigint> {
-  const acct = await fetchMaybeToken(rpc, tokenAccount)
+  // `confirmed`, like our sends: the RPC default (finalized) still shows a balance a confirmed transfer
+  // just moved, and a second transfer of it fails
+  const acct = await fetchMaybeToken(rpc, tokenAccount, { commitment: 'confirmed' })
   return acct.exists ? acct.data.amount : 0n
 }
 

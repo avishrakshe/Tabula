@@ -26,7 +26,7 @@ import {
   getU64Encoder,
   getU8Decoder,
   getU8Encoder,
-} from "../../safe-codecs.js";
+} from "../../safe-codecs";
 
 export type VoucherArgs = {
   magic: Array<number>;

@@ -12,8 +12,8 @@ import {
   pruneHistory,
   type SpendEvent,
 } from '@tabula/policy'
-import { type Approval, issueApproval } from './custody.js'
-import type { EventBus } from './events.js'
+import { type Approval, issueApproval } from './custody'
+import type { EventBus } from './events'
 
 export interface AuthorizeInput {
   readonly agentId: string

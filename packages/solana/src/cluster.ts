@@ -81,6 +81,18 @@ export function clusterFromEnv(env: NodeJS.ProcessEnv = process.env): ClusterCon
   return resolveCluster(name, env.TABULA_RPC_URL)
 }
 
+/**
+ * An RPC URL safe to show or record: scheme and host only. Paid providers put the API key in the query
+ * (`?api-key=`) or the path (`/v2/<key>`).
+ */
+export function publicRpcUrl(url: string): string {
+  try {
+    return new URL(url).origin
+  } catch {
+    return 'unknown'
+  }
+}
+
 function explorerSuffix(cluster: Pick<ClusterConfig, 'name' | 'rpcUrl'>): string {
   if (cluster.name === 'devnet') return '?cluster=devnet'
   return `?cluster=custom&customUrl=${encodeURIComponent(cluster.rpcUrl)}`

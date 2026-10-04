@@ -1,13 +1,13 @@
 import { address } from '@solana/kit'
 import { type Ledger, openLedger } from '@tabula/ledger'
 import { createRpc, type SolanaRpc, vaultFor } from '@tabula/solana'
-import { Anchorer } from './anchor.js'
-import type { GatewayConfig } from './config.js'
-import { Custody, GuardedVoucherSigner } from './custody.js'
-import { EventBus } from './events.js'
-import { PolicyService } from './policy-service.js'
-import { SessionManager } from './sessions.js'
-import { Store } from './store.js'
+import { Anchorer } from './anchor'
+import type { GatewayConfig } from './config'
+import { Custody, GuardedVoucherSigner } from './custody'
+import { EventBus } from './events'
+import { PolicyService } from './policy-service'
+import { SessionManager } from './sessions'
+import { Store } from './store'
 import {
   CeilingTreasury,
   FaucetTreasury,
@@ -15,7 +15,8 @@ import {
   loadTreasuryState,
   type Treasury,
   type TreasuryState,
-} from './treasury.js'
+  treasuryMatches,
+} from './treasury'
 
 export interface Gateway {
   readonly config: GatewayConfig
@@ -42,12 +43,7 @@ export function defaultTreasury(
   custody: Custody,
   state: TreasuryState | null = loadTreasuryState(config.treasuryFile),
 ): Treasury {
-  if (
-    state &&
-    state.cluster === config.cluster.name &&
-    state.rpcUrl === config.cluster.rpcUrl &&
-    state.mint === config.mint
-  ) {
+  if (state && treasuryMatches(state, config.cluster, config.mint)) {
     return new CeilingTreasury(
       rpc,
       address(config.mint),

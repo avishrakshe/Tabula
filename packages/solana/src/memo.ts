@@ -6,8 +6,8 @@ import {
   type InstructionWithData,
   type TransactionSigner,
 } from '@solana/kit'
-import { MEMO_PROGRAM } from './cluster.js'
-import type { SolanaRpc } from './rpc.js'
+import { MEMO_PROGRAM } from './cluster'
+import type { SolanaRpc } from './rpc'
 
 /**
  * SPL Memo instruction: data is the UTF-8 memo, accounts are the signers that vouch for it.

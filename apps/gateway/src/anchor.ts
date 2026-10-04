@@ -25,8 +25,8 @@ import {
   type SolanaRpc,
   sendAndConfirm,
 } from '@tabula/solana'
-import type { EventBus } from './events.js'
-import { KeyedMutex } from './util.js'
+import type { EventBus } from './events'
+import { KeyedMutex } from './util'
 
 export interface BatchVerification {
   readonly batchId: number

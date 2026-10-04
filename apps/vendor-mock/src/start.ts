@@ -9,9 +9,9 @@ import {
   setSolBalance,
   setTokenBalance,
 } from '@tabula/solana'
-import type { VendorConfig } from './config.js'
-import { createPostgresSessionStore } from './pg-store.js'
-import { createVendorApp, type VendorDeps } from './server.js'
+import type { VendorConfig } from './config'
+import { createPostgresSessionStore } from './pg-store'
+import { createVendorApp, type VendorDeps } from './server'
 
 /**
  * A vendor for serverless hosting (a route handler in the web app): payee and fee-payer keys derived

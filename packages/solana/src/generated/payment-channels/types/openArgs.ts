@@ -27,7 +27,7 @@ import {
   getU32Encoder,
   getU64Decoder,
   getU64Encoder,
-} from "../../safe-codecs.js";
+} from "../../safe-codecs";
 
 export type OpenArgs = {
   salt: bigint;

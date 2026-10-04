@@ -16,9 +16,9 @@ import {
   getMintSize,
   getMintToCheckedInstruction,
 } from '@solana-program/token'
-import { TOKEN_PROGRAM } from './cluster.js'
-import { type SolanaRpc, sendAndConfirm, sleep } from './rpc.js'
-import { ata, createAtaIdempotentIx } from './token.js'
+import { TOKEN_PROGRAM } from './cluster'
+import { type SolanaRpc, sendAndConfirm, sleep } from './rpc'
+import { ata, createAtaIdempotentIx } from './token'
 
 export const TEST_USDC_DECIMALS = 6
 

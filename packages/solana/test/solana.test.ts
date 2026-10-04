@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { address, getAddressEncoder } from '@solana/kit'
 import { describe, expect, it } from 'vitest'
 import { deriveChannelAddress, randomSalt } from '../src/channels.js'
-import { explorerAddressUrl, explorerTxUrl, resolveCluster } from '../src/cluster.js'
+import { explorerAddressUrl, explorerTxUrl, publicRpcUrl, resolveCluster } from '../src/cluster.js'
 import { deriveKeypair, ephemeralKeypair, loadOrCreateKeypair } from '../src/keys.js'
-import { customErrorCode } from '../src/rpc.js'
+import { briefError, customErrorCode, TransactionFailedError } from '../src/rpc.js'
 import {
   buildEd25519VoucherInstruction,
   decodeVoucherMessage,
@@ -119,6 +119,29 @@ describe('channels and clusters', () => {
     expect(customErrorCode({ InstructionError: [1, { Custom: 237 }] })).toEqual({ index: 1, code: 237 })
     expect(customErrorCode({ InstructionError: [0, 'InvalidAccountData'] })).toBeNull()
     expect(customErrorCode(null)).toBeNull()
+  })
+
+  it('shows only an RPC key-free origin', () => {
+    expect(publicRpcUrl('https://devnet.helius-rpc.com/?api-key=SECRET')).toBe(
+      'https://devnet.helius-rpc.com',
+    )
+    expect(publicRpcUrl('https://solana-devnet.g.alchemy.com/v2/SECRET')).toBe(
+      'https://solana-devnet.g.alchemy.com',
+    )
+    expect(publicRpcUrl('not a url')).toBe('unknown')
+  })
+
+  it('shortens a failed transaction to the program error, without the encoded payload', () => {
+    const err = new TransactionFailedError(
+      "sendTransaction failed: Solana error #-32002; Decode this error by running `npx @solana/errors decode -- -32002 'X19jb2RlPS0zMjAwMg=='` (Solana error #4615026; Decode this error by running `npx @solana/errors decode -- 4615026 'X19jb2Rl'`)",
+      [
+        'Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]',
+        'Program log: Error: insufficient funds',
+        'Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1',
+      ],
+    )
+    expect(briefError(err)).toBe('sendTransaction failed: insufficient funds')
+    expect(briefError(new Error('fetch failed\n  at x'))).toBe('fetch failed')
   })
 })
 

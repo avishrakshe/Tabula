@@ -27,7 +27,7 @@ import {
   type RedirectReason,
   type RedirectReasonArgs,
 } from ".";
-import { getU64Decoder, getU64Encoder } from "../../safe-codecs.js";
+import { getU64Decoder, getU64Encoder } from "../../safe-codecs";
 
 export type PayoutRedirected = {
   channel: Address;

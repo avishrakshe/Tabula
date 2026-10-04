@@ -4,10 +4,11 @@
  * so nothing has to be installed; `:memory:` gives each test a fresh database.
  */
 import { mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { sql } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
-import * as schema from './schema.js'
+import * as schema from './schema'
 
 export type LedgerDb = PgDatabase<PgQueryResultHKT, typeof schema>
 /** A transaction handle; every query method of `LedgerDb` works on it. */
@@ -26,7 +27,14 @@ export interface OpenOptions {
   readonly max?: number
 }
 
-export const MIGRATIONS = fileURLToPath(new URL('../drizzle', import.meta.url))
+/**
+ * The SQL migrations folder, next to the sources. Worked out at run time from this file's path: a bundler
+ * (the web app's server functions) would otherwise try to bundle the folder as an asset. Bundled code may
+ * not sit next to it, so `TABULA_MIGRATIONS_DIR` can point at it.
+ */
+export function migrationsDir(): string {
+  return process.env.TABULA_MIGRATIONS_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..', 'drizzle')
+}
 
 const isUrl = (target: string) => /^postgres(ql)?:\/\//.test(target)
 
@@ -40,7 +48,7 @@ export async function openLedger(target: string, opts: OpenOptions = {}): Promis
     const db = drizzle(client, { schema })
     if (opts.migrate) {
       const { migrate } = await import('drizzle-orm/postgres-js/migrator')
-      await migrate(db, { migrationsFolder: MIGRATIONS })
+      await migrate(db, { migrationsFolder: migrationsDir() })
     }
     return { db: db as unknown as LedgerDb, kind: 'postgres', close: () => client.end({ timeout: 5 }) }
   }
@@ -51,7 +59,7 @@ export async function openLedger(target: string, opts: OpenOptions = {}): Promis
   const db = drizzle(client, { schema })
   if (opts.migrate !== false) {
     const { migrate } = await import('drizzle-orm/pglite/migrator')
-    await migrate(db, { migrationsFolder: MIGRATIONS })
+    await migrate(db, { migrationsFolder: migrationsDir() })
   }
   return { db: db as unknown as LedgerDb, kind: 'pglite', close: () => client.close() }
 }

@@ -2,7 +2,7 @@
   "name": "@tabula/ledger",
   "version": "0.1.0",
   "private": true,
-  "description": "Ledger schema (Drizzle on node:sqlite), canonical rows, Merkle batching, reconciliation and vendor scorecards.",
+  "description": "Ledger schema (Drizzle on Postgres: Supabase deployed, PGlite locally), canonical rows, Merkle batching, reconciliation and vendor scorecards.",
   "license": "MIT",
   "type": "module",
   "exports": {

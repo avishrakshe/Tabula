@@ -1,5 +1,5 @@
 import type { Address } from '@solana/kit'
-import { TOKEN_PROGRAM } from './cluster.js'
+import { TOKEN_PROGRAM } from './cluster'
 
 /**
  * Surfnet cheatcodes, available only on the Solana Payment Sandbox and local surfpool.

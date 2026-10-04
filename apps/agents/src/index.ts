@@ -1,5 +1,5 @@
-export * from './agent.js'
-export * from './client.js'
+export * from './agent'
+export * from './client'
 
 export const RESEARCH_PROMPTS = [
   'Summarise: scaling laws for sparse mixture-of-experts',

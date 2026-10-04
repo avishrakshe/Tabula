@@ -9,6 +9,7 @@ import {
 import { type schema, withLock } from '@tabula/ledger'
 import { formatUsd, type Remaining } from '@tabula/policy'
 import {
+  briefError,
   buildDistribute,
   buildRequestClose,
   buildSeal,
@@ -20,10 +21,10 @@ import {
   type SolanaRpc,
   sendAndConfirm,
 } from '@tabula/solana'
-import { type ChallengeCheck, simulateOpen, verifyChallengeFields } from './challenge.js'
-import type { GatewayConfig } from './config.js'
-import { type Custody, type GuardedVoucherSigner, SignerRefusal } from './custody.js'
-import type { EventBus } from './events.js'
+import { type ChallengeCheck, simulateOpen, verifyChallengeFields } from './challenge'
+import type { GatewayConfig } from './config'
+import { type Custody, type GuardedVoucherSigner, SignerRefusal } from './custody'
+import type { EventBus } from './events'
 import {
   authorizedCall,
   type CallResult,
@@ -32,11 +33,11 @@ import {
   fetchChallenge,
   parseReceipt,
   VendorUnreachableError,
-} from './mpp-client.js'
-import type { PolicyService } from './policy-service.js'
-import { Store } from './store.js'
-import { CeilingError, type FundingResult, type Treasury } from './treasury.js'
-import { KeyedMutex, newId, sleep, toNum, withTimeout } from './util.js'
+} from './mpp-client'
+import type { PolicyService } from './policy-service'
+import { Store } from './store'
+import { CeilingError, type FundingResult, type Treasury } from './treasury'
+import { KeyedMutex, newId, sleep, toNum, withTimeout } from './util'
 
 export class GatewayError extends Error {
   constructor(
@@ -133,6 +134,7 @@ export class SessionManager {
   readonly #sessions = new Map<string, LiveSession>()
   /** Orders one session's vouchers within this instance (the vendor wants cumulatives in order). */
   readonly #sessionLock = new KeyedMutex()
+  readonly #walletLock = new KeyedMutex()
   /** Kill/pause work started from a voucher request; drained before shutdown. */
   readonly #background = new Set<Promise<unknown>>()
 
@@ -909,7 +911,7 @@ export class SessionManager {
           type: 'kill_step',
           agentId: s.agentId,
           channelId: sessionId,
-          message: `Cooperative close with ${s.vendorId} failed (${(err as Error).message}); forcing the close onchain`,
+          message: `Cooperative close with ${s.vendorId} failed (${briefError(err)}); forcing the close onchain`,
         })
         return null
       })
@@ -963,7 +965,7 @@ export class SessionManager {
           type: 'kill_step',
           agentId: row.agentId,
           channelId: row.id,
-          message: `Resuming the close of ${row.id} failed: ${(err as Error).message}`,
+          message: `Resuming the close of ${row.id} failed: ${briefError(err)}`,
         })
       }
     }
@@ -1218,7 +1220,7 @@ export class SessionManager {
           type: 'kill_step',
           agentId,
           channelId: c.id,
-          message: `Closing ${c.id} failed: ${(err as Error).message}`,
+          message: `Closing ${c.id} failed: ${briefError(err)}`,
         })
       }
     }
@@ -1230,7 +1232,14 @@ export class SessionManager {
   async #sweepWallet(agentId: string, why: string): Promise<bigint> {
     try {
       const { payer } = await this.custody.agentKeys(agentId)
-      const r = await this.treasury.sweep(agentId, payer)
+      // One sweep of a wallet at a time (a kill and the float manager can both sweep): the second then
+      // reads the balance the first left, instead of moving the same money twice. Serverless instances
+      // share a ledger lock; one process (on PGlite, where a lock would hold the only connection for
+      // the whole confirmation) needs only its own.
+      const sweep = () => this.treasury.sweep(agentId, payer)
+      const r = this.config.serverless
+        ? await withLock(this.store.db, `wallet:${agentId}`, sweep)
+        : await this.#walletLock.run(agentId, sweep)
       if (r.amount > 0n) {
         await this.bus.emit({
           type: 'sweep',
@@ -1246,7 +1255,7 @@ export class SessionManager {
       await this.bus.emit({
         type: 'sweep',
         agentId,
-        message: `Sweeping ${agentId}'s wallet failed: ${(err as Error).message}`,
+        message: `Sweeping ${agentId}'s wallet failed: ${briefError(err)}`,
       })
       return 0n
     }
@@ -1275,7 +1284,7 @@ export class SessionManager {
           type: 'sweep',
           agentId: c.agentId,
           channelId: c.id,
-          message: `Closing idle channel ${c.id} failed: ${(err as Error).message}`,
+          message: `Closing idle channel ${c.id} failed: ${briefError(err)}`,
         })
       }
     }

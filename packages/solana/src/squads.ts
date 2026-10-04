@@ -10,7 +10,7 @@
 import { AccountRole, type Address, address, type Instruction, type KeyPairSigner } from '@solana/kit'
 import { Connection, PublicKey, TransactionInstruction, TransactionMessage } from '@solana/web3.js'
 import * as squads from '@sqds/multisig'
-import { type SolanaRpc, sendAndConfirm } from './rpc.js'
+import { type SolanaRpc, sendAndConfirm } from './rpc'
 
 export const SQUADS_PROGRAM_ID = squads.PROGRAM_ID
 

@@ -11,6 +11,7 @@ import {
   createAtaIdempotentIx,
   fetchAllowance,
   ownerTokenBalance,
+  publicRpcUrl,
   recurringDelegationFor,
   type SolanaRpc,
   type SquadsVault,
@@ -18,7 +19,7 @@ import {
   setTokenBalance,
   transferCheckedIx,
 } from '@tabula/solana'
-import type { Custody } from './custody.js'
+import type { Custody } from './custody'
 
 export interface FundingResult {
   /** Amount moved into the agent wallet (0 when it already had enough). */
@@ -120,6 +121,15 @@ export interface TreasuryState {
       readonly periodLengthS: string
     }
   >
+}
+
+/**
+ * Whether a saved setup belongs to this cluster and mint. Devnet is one network whichever RPC provider
+ * serves it; a cheatcode cluster (sandbox, localnet) is only the same one at the same host.
+ */
+export function treasuryMatches(state: TreasuryState, cluster: ClusterConfig, mint: string): boolean {
+  if (state.cluster !== cluster.name || state.mint !== mint) return false
+  return !cluster.cheatcodes || publicRpcUrl(state.rpcUrl) === publicRpcUrl(cluster.rpcUrl)
 }
 
 export function loadTreasuryState(file: string): TreasuryState | null {

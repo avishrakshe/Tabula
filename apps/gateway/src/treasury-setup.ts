@@ -12,6 +12,7 @@ import {
   createSquadsVault,
   executeAsVault,
   fetchAllowance,
+  publicRpcUrl,
   recurringDelegationFor,
   type SolanaRpc,
   type SquadsVault,
@@ -20,7 +21,7 @@ import {
   subscriptionAuthorityInitId,
   vaultFor,
 } from '@tabula/solana'
-import { loadTreasuryState, saveTreasuryState, type TreasuryState } from './treasury.js'
+import { loadTreasuryState, saveTreasuryState, type TreasuryState, treasuryMatches } from './treasury'
 
 export type TreasurySetupLog = (message: string, txSignature?: string) => void
 
@@ -44,7 +45,7 @@ export async function ensureTreasury(args: {
   const { rpc, cluster, mint } = args
   let state = loadTreasuryState(args.file)
   let vault: SquadsVault | null = null
-  if (state && state.cluster === cluster.name && state.rpcUrl === cluster.rpcUrl && state.mint === mint) {
+  if (state && treasuryMatches(state, cluster, mint)) {
     const { value } = await rpc.getAccountInfo(state.multisig as Address, { encoding: 'base64' }).send()
     if (value) {
       vault = vaultFor(state.multisig as Address, state.vaultIndex)
@@ -57,7 +58,7 @@ export async function ensureTreasury(args: {
     log(`Created Squads multisig ${created.multisig} (vault ${created.vault})`, created.signature)
     state = {
       cluster: cluster.name,
-      rpcUrl: cluster.rpcUrl,
+      rpcUrl: publicRpcUrl(cluster.rpcUrl), // saved to a file and the ledger: never the provider's API key
       mint,
       multisig: created.multisig,
       vault: created.vault,

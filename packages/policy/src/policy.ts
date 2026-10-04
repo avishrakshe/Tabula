@@ -1,4 +1,4 @@
-import { usdToMicros } from './money.js'
+import { usdToMicros } from './money'
 
 /** What the gateway does when a rule trips. `block` refuses one voucher; the others also stop the agent. */
 export type ViolationAction = 'block' | 'pause' | 'kill_and_close'

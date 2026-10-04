@@ -1,6 +1,6 @@
-import { buildApp } from './app.js'
-import { configFromEnv } from './config.js'
-import { createGateway } from './gateway.js'
+import { buildApp } from './app'
+import { configFromEnv } from './config'
+import { createGateway } from './gateway'
 
 const config = configFromEnv()
 const gw = await createGateway(config)

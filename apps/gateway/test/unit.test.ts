@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type Address, address } from '@solana/kit'
 import type { SessionChallenge } from '@solana/mpp/client'
+import { openLedger, schema } from '@tabula/ledger'
 import { encodeVoucherMessage, resolveCluster, signatureFromBase58, verifyVoucher } from '@tabula/solana'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../src/app.js'
@@ -257,4 +258,31 @@ describe('HTTP app', () => {
     }
     await app.close()
   })
+
+  it('returns only newer events after an id, and never shows the RPC key', async () => {
+    const ledger = await openLedger(':memory:')
+    await ledger.db
+      .insert(schema.events)
+      .values([1, 2, 3].map((n) => ({ ts: n, type: 'test', message: `event ${n}` })))
+    const app = await buildApp({
+      ledger,
+      config: {
+        adminToken: 'admin',
+        cluster: { name: 'devnet', rpcUrl: 'https://devnet.example-rpc.com/v2/SECRET?api-key=SECRET' },
+        mint: 'mint',
+      },
+      treasury: { kind: 'test' },
+      store: { channels: async () => [] },
+    } as unknown as Gateway)
+    const get = async (url: string) =>
+      (await app.inject({ method: 'GET', url, headers: { authorization: 'Bearer admin' } })).json()
+    expect((await get('/v1/events')).map((e: { id: number }) => e.id)).toEqual([3, 2, 1])
+    expect((await get('/v1/events?after=1')).map((e: { id: number }) => e.id)).toEqual([3, 2])
+    expect(await get('/v1/events?after=3')).toEqual([])
+    const health = await get('/health')
+    expect(health.rpc).toBe('https://devnet.example-rpc.com')
+    expect(JSON.stringify(health)).not.toContain('SECRET')
+    await app.close()
+    await ledger.close()
+  }, 30_000)
 })

@@ -1,5 +1,5 @@
-import { describeDecision } from './describe.js'
-import type { Policy, ViolationAction } from './policy.js'
+import { describeDecision } from './describe'
+import type { Policy, ViolationAction } from './policy'
 
 export type AgentStatus = 'active' | 'paused' | 'killed'
 

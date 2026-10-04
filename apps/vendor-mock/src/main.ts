@@ -4,8 +4,8 @@
  *   pnpm --filter @tabula/vendor-mock start inference-a  # one vendor
  */
 import { clusterFromEnv } from '@tabula/solana'
-import { DEMO_VENDORS, demoVendor } from './config.js'
-import { startVendor } from './start.js'
+import { DEMO_VENDORS, demoVendor } from './config'
+import { startVendor } from './start'
 
 const cluster = clusterFromEnv()
 const mint = process.env.TABULA_MINT ?? cluster.defaultMint

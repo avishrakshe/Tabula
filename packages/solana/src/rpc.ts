@@ -209,6 +209,21 @@ function extractLogs(err: unknown): string[] {
   return []
 }
 
+/**
+ * One line for a log people read (the dashboard timeline): the program's own error when the logs carry
+ * one, without the encoded payload @solana/kit appends to its errors in production builds.
+ */
+export function briefError(err: unknown): string {
+  const logs = err instanceof TransactionFailedError ? err.logs : []
+  const programError = logs.map((l) => /Program log: (?:Error: )?(.+)/.exec(l)?.[1]).find(Boolean)
+  const head = (err instanceof Error ? err.message : String(err))
+    .split('\n')[0]!
+    .replace(/;? ?Decode this error by running `[^`]*`/g, '')
+    .replace(/\s*\(Solana error #-?\d+\)/g, '')
+    .trim()
+  return programError ? `${head.split(':')[0]}: ${programError}` : head.slice(0, 240)
+}
+
 function describeError(err: unknown): string {
   if (err instanceof Error) {
     const cause = (err as { cause?: unknown }).cause

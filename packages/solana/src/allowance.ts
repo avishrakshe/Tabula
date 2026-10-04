@@ -19,9 +19,9 @@ import {
   getTransferRecurringOverlayInstructionAsync,
   UNKNOWN_INIT_ID,
 } from '@solana/subscriptions'
-import { TOKEN_PROGRAM } from './cluster.js'
-import type { SolanaRpc } from './rpc.js'
-import { ata } from './token.js'
+import { TOKEN_PROGRAM } from './cluster'
+import type { SolanaRpc } from './rpc'
+import { ata } from './token'
 
 export async function subscriptionAuthorityFor(owner: Address, mint: Address): Promise<Address> {
   const [pda] = await findSubscriptionAuthorityPda({ user: owner, tokenMint: mint })

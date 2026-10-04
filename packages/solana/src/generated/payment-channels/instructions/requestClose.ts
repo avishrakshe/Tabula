@@ -31,7 +31,7 @@ import {
   getAccountMetaFactory,
   type ResolvedInstructionAccount,
 } from "@solana/program-client-core";
-import { getU8Decoder, getU8Encoder } from "../../safe-codecs.js";
+import { getU8Decoder, getU8Encoder } from "../../safe-codecs";
 import { PAYMENT_CHANNELS_PROGRAM_ADDRESS } from "../programs";
 
 export const REQUEST_CLOSE_DISCRIMINATOR = 5;

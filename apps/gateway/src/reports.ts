@@ -36,12 +36,15 @@ export async function reconcileAll(
   db: LedgerDb,
   rpc: SolanaRpc,
   cluster: ClusterConfig,
+  /** The most recently closed channels only (each one is an RPC read). */
+  limit?: number,
 ): Promise<ReconcileRow[]> {
-  const closed = await db
+  const q = db
     .select()
     .from(schema.channels)
     .where(inArray(schema.channels.status, ['sealed', 'refunded']))
     .orderBy(desc(schema.channels.closedAt))
+  const closed = limit === undefined ? await q : await q.limit(limit)
   const rows: ReconcileRow[] = []
   for (const c of closed) {
     // the ledger's view: the highest cumulative among rows Tabula actually signed (blocked rows excluded)

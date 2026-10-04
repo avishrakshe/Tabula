@@ -7,8 +7,8 @@
 import { schema } from '@tabula/ledger'
 import { eq } from '@tabula/ledger/sql'
 import type { PolicyDoc } from '@tabula/policy'
-import type { Gateway } from './gateway.js'
-import { newApiKey, sha256Hex } from './util.js'
+import type { Gateway } from './gateway'
+import { newApiKey, sha256Hex } from './util'
 
 export interface AgentSpec {
   readonly id: string
