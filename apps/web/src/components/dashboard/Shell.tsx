@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
   Store,
   Sun,
+  Zap,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -123,17 +124,63 @@ function ConnectionPanel({ onClose }: { onClose: () => void }) {
   )
 }
 
+const CLUSTER_LABEL: Record<string, string> = {
+  devnet: 'Solana devnet',
+  sandbox: 'the Solana Payment Sandbox',
+  localnet: 'a local validator',
+}
+const clusterLabel = (c: string | null | undefined) => (c ? (CLUSTER_LABEL[c] ?? c) : 'Solana')
+
+/** The hosted site's live demo: start a run on devnet, or follow the one in progress. */
+function LiveRunControl() {
+  const { hosted, source, now } = useTabula()
+  if (!hosted) return null
+  const run = hosted.run
+  if (source === 'hosted' && run?.status === 'running') {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-full border border-wax/40 bg-surface px-3 py-1.5 text-xs">
+        <LiveDot /> Live run #{run.id} ·{' '}
+        <span className="num">{duration(Math.max(0, now - run.startedAt))}</span>
+      </span>
+    )
+  }
+  const joining = run?.status === 'running'
+  return (
+    <Button
+      variant="primary"
+      className="px-3 py-1.5 text-xs"
+      disabled={hosted.starting || !hosted.available}
+      title={hosted.available ? undefined : (hosted.reason ?? undefined)}
+      onClick={() => void hosted.start()}
+    >
+      <Zap className="size-3.5" aria-hidden />
+      {hosted.starting
+        ? 'Starting…'
+        : joining
+          ? 'Watch the live run'
+          : hosted.available
+            ? `Run it live on ${hosted.cluster ?? 'devnet'}`
+            : 'Live run unavailable'}
+    </Button>
+  )
+}
+
 function StatusBar() {
-  const { mode, replay, settings, error, connect, showReplay } = useTabula()
+  const { mode, source, replay, settings, error, connect, showReplay, hosted } = useTabula()
   const [open, setOpen] = useState(false)
   return (
     <div className="relative flex flex-wrap items-center gap-3">
       {mode === 'live' ? (
         <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs">
-          <LiveDot /> Live · {settings.url.replace(/^https?:\/\//, '')}
+          <LiveDot /> Live ·{' '}
+          {source === 'hosted'
+            ? `ledger on ${clusterLabel(hosted?.cluster)}`
+            : settings.url.replace(/^https?:\/\//, '')}
           {error ? <span className="text-amber">· {error}</span> : null}
         </span>
       ) : null}
+      {mode === 'replay' && error ? <span className="text-xs text-amber">{error}</span> : null}
+      <LiveRunControl />
       {mode === 'connecting' ? <span className="text-xs text-fg-2">Connecting…</span> : null}
       {mode === 'error' ? <span className="text-xs text-sever">{error}</span> : null}
       {replay ? (
@@ -184,7 +231,8 @@ function StatusBar() {
         </div>
       ) : null}
       <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={() => setOpen((v) => !v)}>
-        <Plug className="size-3.5" /> {mode === 'live' ? 'Gateway' : 'Connect live'}
+        <Plug className="size-3.5" />{' '}
+        {source === 'gateway' && mode === 'live' ? 'Gateway' : 'Connect gateway'}
       </Button>
       {mode === 'live' ? (
         <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={showReplay}>
@@ -192,7 +240,7 @@ function StatusBar() {
         </Button>
       ) : mode === 'replay' ? (
         <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={connect}>
-          Retry live
+          {hosted ? 'Live ledger' : 'Retry live'}
         </Button>
       ) : null}
       {open ? <ConnectionPanel onClose={() => setOpen(false)} /> : null}
@@ -202,7 +250,7 @@ function StatusBar() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const { replay, mode } = useTabula()
+  const { replay, mode, source, hosted } = useTabula()
   return (
     <div className="min-h-screen bg-bg text-fg">
       <a
@@ -240,9 +288,11 @@ export function Shell({ children }: { children: ReactNode }) {
           </nav>
           <div className="mt-auto px-2 text-xs text-muted">
             {replay
-              ? `Recorded ${new Date(replay.recordedAt).toLocaleString()} on the Solana Payment Sandbox`
+              ? `Recorded ${new Date(replay.recordedAt).toLocaleString()} on ${clusterLabel(replay.cluster)}`
               : mode === 'live'
-                ? 'Live gateway'
+                ? source === 'hosted'
+                  ? `Live ledger on ${clusterLabel(hosted?.cluster)}, test USDC only`
+                  : 'Live gateway'
                 : ''}
           </div>
         </aside>

@@ -71,7 +71,9 @@ export function VoucherFeed({
                   <Badge tone="warn">{outcome.label}</Badge>
                 ) : null}
               </p>
-              {blocked && v.reason ? <p className="mt-0.5 text-sm text-fg">{v.reason}</p> : null}
+              {blocked && v.reason ? (
+                <p className="mt-0.5 text-sm text-fg [overflow-wrap:anywhere]">{v.reason}</p>
+              ) : null}
               <p className="mt-0.5 text-xs text-muted">
                 <span className="num">{clock(v.ts)}</span> · {v.taskId} · {timeAgo(v.ts, now)}
               </p>
@@ -136,7 +138,8 @@ export function Timeline({
           <li key={t.key} className="flex gap-3 px-5 py-3">
             <Icon className={cx('mt-0.5 size-4 shrink-0', severe ? 'text-sever' : 'text-fg-2')} aria-hidden />
             <div className="min-w-0 flex-1">
-              <p className="text-sm">{t.message}</p>
+              {/* an unbroken token (a signature, an RPC error) must wrap, or it widens the whole grid */}
+              <p className="text-sm [overflow-wrap:anywhere]">{t.message}</p>
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
                 <span className="num">{clock(t.ts)}</span>
                 <span>{timeAgo(t.ts, now)}</span>

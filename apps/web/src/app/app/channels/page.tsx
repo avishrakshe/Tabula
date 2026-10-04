@@ -20,7 +20,7 @@ import { useTabula } from '@/lib/data/provider'
 import { duration, timeAgo, usd } from '@/lib/format'
 
 export default function ChannelsPage() {
-  const { data, actions, mode, now } = useTabula()
+  const { data, actions, canAct, actHint, now } = useTabula()
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const f = data.float
@@ -34,8 +34,8 @@ export default function ChannelsPage() {
         actions={
           <Button
             variant="primary"
-            disabled={mode !== 'live' || busy}
-            title={mode !== 'live' ? 'Connect a live gateway to act' : undefined}
+            disabled={!canAct || busy}
+            title={actHint}
             onClick={async () => {
               setBusy(true)
               setMsg(null)

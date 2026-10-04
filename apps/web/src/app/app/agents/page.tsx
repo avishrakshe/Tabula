@@ -8,7 +8,7 @@ import { useTabula } from '@/lib/data/provider'
 import { timeAgo, usd } from '@/lib/format'
 
 export default function AgentsPage() {
-  const { data, actions, mode, now } = useTabula()
+  const { data, actions, canAct, actHint, now } = useTabula()
   const [busy, setBusy] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -93,9 +93,9 @@ export default function AgentsPage() {
                     <Td className="text-right">
                       {a.status === 'killed' ? (
                         <Button
-                          disabled={mode !== 'live' || busy === a.id}
+                          disabled={!canAct || busy === a.id}
                           onClick={() => run(a.id, () => actions.revive(a.id), `${a.id} may pay again.`)}
-                          title={mode !== 'live' ? 'Connect a live gateway to act' : undefined}
+                          title={actHint}
                         >
                           <RotateCcw className="size-3.5" /> Resume
                         </Button>
@@ -121,8 +121,8 @@ export default function AgentsPage() {
                       ) : (
                         <Button
                           variant="danger"
-                          disabled={mode !== 'live'}
-                          title={mode !== 'live' ? 'Connect a live gateway to act' : undefined}
+                          disabled={!canAct}
+                          title={actHint}
                           onClick={() => setConfirm(a.id)}
                         >
                           <OctagonX className="size-3.5" /> Stop

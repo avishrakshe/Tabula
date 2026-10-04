@@ -37,7 +37,7 @@ function velocityLimit(
 
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { data, actions, mode } = useTabula()
+  const { data, actions, canAct, actHint } = useTabula()
   const agent = data.agents.find((a) => a.id === id)
   const policy = data.policies.find((p) => p.scope === 'agent' && p.scopeId === id && p.active)
   const limit = velocityLimit(policy?.rules)
@@ -112,8 +112,8 @@ export default function AgentDetailPage() {
             {agent.status !== 'killed' ? (
               <Button
                 variant="danger"
-                disabled={mode !== 'live'}
-                title={mode !== 'live' ? 'Connect a live gateway to act' : undefined}
+                disabled={!canAct}
+                title={actHint}
                 onClick={() => void actions.kill(agent.id)}
               >
                 <OctagonX className="size-3.5" /> Stop agent
@@ -209,8 +209,8 @@ export default function AgentDetailPage() {
             actions={
               <Button
                 variant="primary"
-                disabled={mode !== 'live'}
-                title={mode !== 'live' ? 'Connect a live gateway to edit policies' : undefined}
+                disabled={!canAct}
+                title={actHint}
                 onClick={async () => {
                   setPolicyMsg(null)
                   try {

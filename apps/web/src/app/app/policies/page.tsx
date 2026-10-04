@@ -12,7 +12,7 @@ function scopeLabel(p: Pick<PolicyRow, 'scope' | 'scopeId'>) {
 }
 
 export default function PoliciesPage() {
-  const { data, actions, mode, now } = useTabula()
+  const { data, actions, canAct, actHint, now } = useTabula()
   // a stable order (global, then agents and vendors by name) so a save doesn't reshuffle the list
   const active = useMemo(
     () =>
@@ -87,8 +87,8 @@ export default function PoliciesPage() {
                 actions={
                   <Button
                     variant="primary"
-                    disabled={mode !== 'live' || !current}
-                    title={mode !== 'live' ? 'Connect a live gateway to edit policies' : undefined}
+                    disabled={!canAct || !current}
+                    title={actHint}
                     onClick={async () => {
                       if (!current) return
                       setMsg(null)

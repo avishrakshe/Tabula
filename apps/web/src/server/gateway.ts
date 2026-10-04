@@ -19,6 +19,9 @@ let runtime: Promise<Runtime> | null = null
 
 export function gateway(): Promise<Runtime> {
   runtime ??= (async () => {
+    // only where a ledger is configured: a plain `next dev` shows the recorded run, not an empty ledger
+    if (!process.env.DATABASE_URL && !process.env.TABULA_DB_PATH)
+      throw new Error('no ledger configured (DATABASE_URL or TABULA_DB_PATH)')
     const config = { ...configFromEnv(), serverless: true }
     // on Vercel the ledger must be Postgres; off Vercel (a local rehearsal with `next start`) PGlite is fine
     if (process.env.VERCEL && !/^postgres(ql)?:\/\//.test(config.dbPath))

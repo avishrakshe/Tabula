@@ -16,6 +16,7 @@ import { type Gateway, GatewayError } from '@tabula/gateway'
 import { first, type LedgerDb, schema, withLock } from '@tabula/ledger'
 import { and, desc, eq, isNull, lt, or, sql } from '@tabula/ledger/sql'
 import { createRpc, loadOrCreateKeypair, ownerTokenBalance, solBalance } from '@tabula/solana'
+import { scrub } from './request'
 
 interface AgentState {
   readonly id: string
@@ -115,8 +116,13 @@ const view = (row: typeof schema.demoRuns.$inferSelect, now = Date.now()): RunVi
     elapsedMs: (row.finishedAt ?? now) - row.startedAt,
     finishedAt: row.finishedAt,
     steps: state.done,
-    agents: state.agents.map((a) => ({ id: a.id, vendorId: a.vendorId, stopped: a.stopped, note: a.note })),
-    error: row.error,
+    agents: state.agents.map((a) => ({
+      id: a.id,
+      vendorId: a.vendorId,
+      stopped: a.stopped,
+      note: a.note && scrub(a.note),
+    })),
+    error: row.error && scrub(row.error),
   }
 }
 
@@ -136,11 +142,42 @@ async function allow(db: LedgerDb, key: string, limit: number, windowMs: number,
   return (row?.count ?? 0) <= limit
 }
 
+const FUNDS_TTL_MS = 60_000
+const funds: { at: number; pending: Promise<string | null> | null; last?: string | null } = {
+  at: 0,
+  pending: null,
+}
+
 /**
  * The devnet funds watchdog: enough SOL for fees and rent, enough test USDC in the vault, and enough
  * left on every agent's onchain allowance for one run. Null when a run can start, else the reason.
+ * About a dozen RPC reads and every page view asks, so an instance answers from its last check and
+ * refreshes it in the background once a minute. `fresh` waits for a current answer (starting a run).
  */
-export async function fundsProblem(gw: Gateway): Promise<string | null> {
+export function fundsProblem(gw: Gateway, opts: { fresh?: boolean } = {}): Promise<string | null> {
+  const now = Date.now()
+  if ((opts.fresh || now - funds.at >= FUNDS_TTL_MS) && !funds.pending) {
+    funds.at = now
+    const check = checkFunds(gw)
+    funds.pending = check
+    check
+      .then(
+        (v) => {
+          funds.last = v
+        },
+        () => {
+          funds.at = 0 // a failed check is retried by the next caller
+        },
+      )
+      .finally(() => {
+        if (funds.pending === check) funds.pending = null
+      })
+  }
+  if (opts.fresh || funds.last === undefined) return funds.pending ?? Promise.resolve(funds.last ?? null)
+  return Promise.resolve(funds.last)
+}
+
+async function checkFunds(gw: Gateway): Promise<string | null> {
   const { cluster } = gw.config
   if (!cluster.cheatcodes) {
     const rpc = createRpc(cluster.rpcUrl)
@@ -191,7 +228,7 @@ export async function startRun(
   const now = Date.now()
   const running = await activeRun(db, now)
   if (running) return { run: view(running, now), joined: true }
-  const problem = await fundsProblem(gw)
+  const problem = await fundsProblem(gw, { fresh: true })
   if (problem)
     throw new DemoUnavailable(
       'refueling',
@@ -283,6 +320,14 @@ async function advance(
   const deadline = Date.now() + TICK_BUDGET_MS
   const elapsed = () => Date.now() - startedAt
   const agent = (id: string) => state.agents.find((a) => a.id === id)!
+
+  // the last run stopped rogue-01 (that is the story): each run starts with every agent allowed to pay
+  if (!state.done.includes('reset')) {
+    for (const a of state.agents) {
+      if ((await gw.store.agent(a.id))?.status !== 'active') await gw.sessions.revive(a.id)
+    }
+    state.done.push('reset')
+  }
 
   // timeline steps first, one per tick (each can take a few seconds on devnet)
   const step = STEPS.find((s) => elapsed() >= s.at && !state.done.includes(s.id))

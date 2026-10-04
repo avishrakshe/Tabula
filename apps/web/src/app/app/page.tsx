@@ -10,13 +10,16 @@ import { clock, usd, usdCompact } from '@/lib/format'
 import { cumulativeSpend } from '@/lib/series'
 
 export default function OverviewPage() {
-  const { data, mode } = useTabula()
+  const { data, mode, source, hosted } = useTabula()
   const o = data.overview
+  // the hosted ledger holds every run since launch: chart the latest one, not days of flat line
+  const run = source === 'hosted' ? hosted?.run : null
   const series = useMemo(() => {
     const agentIds = data.agents.map((a) => a.id)
     const labels = Object.fromEntries(data.agents.map((a) => [a.id, a.id]))
-    return cumulativeSpend(data.vouchers, agentIds, labels)
-  }, [data.vouchers, data.agents])
+    const vouchers = run ? data.vouchers.filter((v) => v.ts >= run.startedAt) : data.vouchers
+    return cumulativeSpend(vouchers, agentIds, labels)
+  }, [data.vouchers, data.agents, run])
   const blocked = data.vouchers.filter((v) => v.verdict === 'blocked').length
 
   return (
@@ -61,7 +64,7 @@ export default function OverviewPage() {
 
       <Card className="mt-6">
         <CardHeader
-          title="Cumulative spend by agent"
+          title={run ? `Cumulative spend by agent, live run #${run.id}` : 'Cumulative spend by agent'}
           subtitle="Signed vouchers only. Blocked vouchers were never signed and cost nothing."
         />
         <div className="px-5 py-4">
