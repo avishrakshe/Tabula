@@ -15,14 +15,12 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { address } from '@solana/kit'
 import {
-  type AgentSpec,
   configFromEnv,
   createGateway,
   ensureAllowances,
   ensureTreasury,
   newApiKey,
   registerAgent,
-  registerVendor,
 } from '@tabula/gateway'
 import {
   createRpc,
@@ -32,7 +30,7 @@ import {
   loadOrCreateKeypair,
   setSolBalance,
 } from '@tabula/solana'
-import { DEMO_VENDORS, pricePerCall } from '@tabula/vendor-mock'
+import { DEMO_AGENTS, GLOBAL_POLICY, registerDemoVendors } from './lib/demo-config.js'
 
 const config = configFromEnv()
 const { cluster } = config
@@ -45,38 +43,6 @@ if (!cluster.cheatcodes) {
 const mint = address(config.mint)
 const rpc = createRpc(cluster.rpcUrl)
 const log = (msg: string, tx?: string) => console.log(tx ? `${msg}\n    ${explorerTxUrl(cluster, tx)}` : msg)
-
-export const DEMO_AGENTS: AgentSpec[] = [
-  {
-    id: 'research-01',
-    name: 'Research agent',
-    role: 'Summarises papers for the research team',
-    department: 'Research',
-    dailyBudget: 5_000_000,
-    policy: {
-      dailyBudgetUsd: 5,
-      perTaskBudgetUsd: 2,
-      velocity: { windowSec: 60, maxUsd: 0.2 },
-      anomaly: { zScore: 6, minSamples: 30, bucketSec: 10 },
-    },
-  },
-  {
-    id: 'coder-01',
-    name: 'Coding agent',
-    role: 'Writes and reviews code',
-    department: 'Engineering',
-    dailyBudget: 5_000_000,
-    policy: { dailyBudgetUsd: 5, perTaskBudgetUsd: 2, velocity: { windowSec: 60, maxUsd: 0.2 } },
-  },
-  {
-    id: 'rogue-01',
-    name: 'Ops agent',
-    role: 'Triage bot reading inbound tickets (the one that gets prompt-injected)',
-    department: 'Operations',
-    dailyBudget: 5_000_000,
-    policy: { dailyBudgetUsd: 5, perTaskBudgetUsd: 2, velocity: { windowSec: 60, maxUsd: 0.2 } },
-  },
-]
 
 async function main() {
   console.log(`Tabula setup on ${cluster.name} (${cluster.rpcUrl})\n`)
@@ -107,32 +73,8 @@ async function main() {
   try {
     if (gw.treasury.kind !== 'squads-allowance')
       throw new Error(`expected the Squads treasury, got ${gw.treasury.kind}`)
-    await gw.policy.setPolicy(
-      'global',
-      null,
-      {
-        vendors: { allow: ['inference-a', 'inference-b'] },
-        maxUnitPriceUsd: 0.00001,
-        onViolation: 'kill_and_close',
-      },
-      'setup',
-    )
-    for (const v of DEMO_VENDORS.filter((x) => x.id !== 'mirror')) {
-      const payee = await loadOrCreateKeypair(v.payeeKey)
-      await registerVendor(gw, {
-        id: v.id,
-        name: v.name,
-        endpoint: `http://127.0.0.1:${v.port}/v1/infer`,
-        payeePubkey: payee.address,
-        mint,
-        programId: cluster.paymentChannelsProgram,
-        unitName: v.unitName,
-        unitPrice: Number(v.unitPrice),
-        maxUnitPrice: Number(v.unitPrice) * 2,
-        taskType: v.taskType,
-      })
-      log(`Vendor ${v.id.padEnd(12)} payee ${payee.address}  ${pricePerCall(v)} micros/call`)
-    }
+    await gw.policy.setPolicy('global', null, GLOBAL_POLICY, 'setup')
+    for (const v of await registerDemoVendors(gw)) log(`Vendor ${v.id.padEnd(12)} payee ${v.payee}`)
     const apiKeys: Record<string, string> = {}
     for (const a of DEMO_AGENTS) apiKeys[a.id] = (await registerAgent(gw, a, newApiKey()))!
     const keysFile = join(keysDir(), 'agents.json')
