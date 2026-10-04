@@ -11,7 +11,11 @@
     "@hono/node-server": "2.1.3",
     "@solana/kit": "6.10.0",
     "@solana/mpp": "file:../vendor/solana-mpp-0.11.0.tgz",
+    "@tabula/gateway": "workspace:*",
+    "@tabula/ledger": "workspace:*",
+    "@tabula/policy": "workspace:*",
     "@tabula/solana": "workspace:*",
+    "@tabula/vendor-mock": "workspace:*",
     "hono": "4.13.12",
     "mppx": "0.8.15"
   }
