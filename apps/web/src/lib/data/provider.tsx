@@ -102,9 +102,14 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
 
   const client = useMemo(() => new GatewayClient(settings), [settings])
 
+  // ?replay opens the recorded run; ?replay&t=59 opens it paused at 0:59 (deep links, screenshots)
+  const startAt = useRef<number | null>(null)
   useEffect(() => {
     setSettingsState(loadSettings())
-    if (new URLSearchParams(window.location.search).has('replay')) setForceReplay(true)
+    const q = new URLSearchParams(window.location.search)
+    if (q.has('replay')) setForceReplay(true)
+    const at = Number(q.get('t'))
+    if (q.has('t') && Number.isFinite(at)) startAt.current = at * 1000
   }, [])
 
   // relative-time ticker
@@ -213,8 +218,10 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
       .then((f) => {
         if (cancelled) return
         setFile(f)
-        setT(0)
-        setPlaying(true)
+        const at = startAt.current
+        startAt.current = null
+        setT(at === null ? 0 : Math.max(0, Math.min(f.meta.durationMs, at)))
+        setPlaying(at === null)
         setMode('replay')
       })
       .catch((err: Error) => {

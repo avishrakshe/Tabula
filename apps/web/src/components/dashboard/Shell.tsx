@@ -35,6 +35,13 @@ const NAV = [
 function ThemeToggle() {
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null)
   useEffect(() => {
+    // ?theme=dark|light shows a theme without remembering it (links, screenshots)
+    const asked = new URLSearchParams(window.location.search).get('theme')
+    if (asked === 'dark' || asked === 'light') {
+      document.documentElement.dataset.theme = asked
+      setTheme(asked)
+      return
+    }
     try {
       const saved = localStorage.getItem('tabula.theme') as 'light' | 'dark' | null
       if (saved) {
