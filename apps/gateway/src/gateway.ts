@@ -1,6 +1,7 @@
 import { address } from '@solana/kit'
 import { type Ledger, openLedger } from '@tabula/ledger'
 import { createRpc, type SolanaRpc, vaultFor } from '@tabula/solana'
+import { Anchorer } from './anchor.js'
 import type { GatewayConfig } from './config.js'
 import { Custody, GuardedVoucherSigner } from './custody.js'
 import { EventBus } from './events.js'
@@ -19,6 +20,7 @@ export interface Gateway {
   readonly policy: PolicyService
   readonly treasury: Treasury
   readonly sessions: SessionManager
+  readonly anchorer: Anchorer
   readonly rpc: SolanaRpc
   close(): Promise<void>
 }
@@ -60,6 +62,22 @@ export async function createGateway(
   const treasury = opts.treasury ? await opts.treasury(rpc, custody) : defaultTreasury(config, rpc, custody)
   const sessions = new SessionManager(config, rpc, store, custody, signer, policy, treasury, bus)
   await sessions.restore()
+  const anchorer = new Anchorer(ledger.db, rpc, config.cluster, custody.operator, bus)
+
+  // anchor a batch every `anchorEvery` ledger rows (the periodic timer lives in main.ts)
+  const inflight = new Set<Promise<unknown>>()
+  let sinceAnchor = 0
+  const unsubscribe = bus.subscribe((e) => {
+    if (e.type !== 'voucher' || config.anchorEvery <= 0) return
+    if (++sinceAnchor < config.anchorEvery) return
+    sinceAnchor = 0
+    const p = anchorer
+      .anchorNext(Math.max(1, Math.floor(config.anchorEvery / 2)))
+      .catch((err) => console.error('[gateway] anchoring failed:', (err as Error).message))
+    inflight.add(p)
+    void p.finally(() => inflight.delete(p))
+  })
+
   return {
     config,
     ledger,
@@ -70,9 +88,12 @@ export async function createGateway(
     policy,
     treasury,
     sessions,
+    anchorer,
     rpc,
     close: async () => {
+      unsubscribe()
       await sessions.drain()
+      await Promise.allSettled([...inflight])
       ledger.close()
     },
   }

@@ -19,8 +19,18 @@ const sweeper =
       }, config.idleSweepMs)
     : null
 
+// onchain receipts: anchor whatever is ready every interval (batches also trigger every N vouchers)
+const anchorTimer =
+  config.anchorIntervalMs > 0
+    ? setInterval(() => {
+        gw.anchorer.anchorNext().catch((err) => console.error('[gateway] anchoring failed:', err))
+      }, config.anchorIntervalMs)
+    : null
+
 const shutdown = async () => {
   if (sweeper) clearInterval(sweeper)
+  if (anchorTimer) clearInterval(anchorTimer)
+  await gw.anchorer.anchorAll().catch((err) => console.error('[gateway] final anchoring failed:', err))
   await app.close()
   await gw.close()
   process.exit(0)

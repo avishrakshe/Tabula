@@ -1,10 +1,12 @@
 import cors from '@fastify/cors'
 import { schema } from '@tabula/ledger'
+import { explorerTxUrl } from '@tabula/solana'
 import { desc, eq } from 'drizzle-orm'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import type { GatewayEvent } from './events.js'
 import type { Gateway } from './gateway.js'
+import { exportCsv, overview, reconcileAll, scorecards } from './reports.js'
 import { GatewayError } from './sessions.js'
 
 declare module 'fastify' {
@@ -254,6 +256,66 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
       .orderBy(desc(schema.events.id))
       .limit(Math.min(Number(req.query.limit ?? 200), 2000)),
   )
+
+  // ---- reports ---------------------------------------------------------------------------
+  app.get('/v1/overview', { preHandler: requireAdmin }, async () => ({
+    ...(await overview(gw.ledger.db)),
+    cluster: gw.config.cluster.name,
+    treasury: gw.treasury.kind,
+    vault: gw.treasury.vaultAddress,
+    vaultBalance: (await gw.treasury.vaultBalance().catch(() => null))?.toString() ?? null,
+  }))
+
+  app.get('/v1/reconcile', { preHandler: requireAdmin }, async () =>
+    reconcileAll(gw.ledger.db, gw.rpc, gw.config.cluster),
+  )
+
+  app.get('/v1/scores', { preHandler: requireAdmin }, async () => scorecards(gw.ledger.db))
+
+  app.get('/v1/export.csv', { preHandler: requireAdmin }, async (_req, reply) => {
+    const csv = await exportCsv(gw.ledger.db, gw.config.cluster)
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header(
+        'content-disposition',
+        `attachment; filename="tabula-ledger-${new Date().toISOString().slice(0, 10)}.csv"`,
+      )
+      .send(csv)
+  })
+
+  // ---- onchain receipts ------------------------------------------------------------------
+  app.get('/v1/batches', { preHandler: requireAdmin }, async () =>
+    gw.ledger.db.select().from(schema.batches).orderBy(desc(schema.batches.id)).limit(200),
+  )
+
+  app.get<{ Params: { id: string } }>('/v1/batches/:id', { preHandler: requireAdmin }, async (req) => {
+    const id = Number(req.params.id)
+    const batch = await gw.ledger.db.select().from(schema.batches).where(eq(schema.batches.id, id)).get()
+    if (!batch) throw new GatewayError(404, 'NO_BATCH', `no batch ${id}`)
+    return {
+      batch,
+      rows: await gw.anchorer.batchRows(id),
+      explorerUrl: batch.txSignature ? explorerTxUrl(gw.config.cluster, batch.txSignature) : null,
+      leaf: 'sha256(0x00 || canonical JSON row)',
+      node: 'sha256(0x01 || min(a,b) || max(a,b))',
+    }
+  })
+
+  app.post<{ Params: { id: string } }>(
+    '/v1/batches/:id/verify',
+    { preHandler: requireAdmin },
+    async (req) => {
+      try {
+        return await gw.anchorer.verify(Number(req.params.id))
+      } catch (err) {
+        throw new GatewayError(404, 'NO_BATCH', (err as Error).message)
+      }
+    },
+  )
+
+  app.post('/v1/anchor', { preHandler: requireAdmin }, async () => ({
+    anchored: await gw.anchorer.anchorAll(),
+  }))
 
   return app
 }
