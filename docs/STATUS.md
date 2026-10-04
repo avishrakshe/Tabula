@@ -8,7 +8,7 @@ _Last updated 2026-10-04._
 | M2 Gateway, policy, verification | ✅ done (site skeleton still open) | `m2-gateway` |
 | M3 Kill and float ‖ 3D hero | ✅ kill/float done (3D hero not started) | `m3-kill-float` |
 | M4 Ledger, receipts, reconciliation, scorecards | ✅ done (plus `pnpm demo`) | `m4-ledger` |
-| M5 Dashboard | ✅ checked in a browser, live and replay, including every action | |
+| M5 Dashboard | ✅ checked in a browser, live and replay, including every action | `m5-dashboard` |
 
 ## What works (run, not assumed)
 
