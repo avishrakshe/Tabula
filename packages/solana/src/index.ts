@@ -1,6 +1,7 @@
 export * from './allowance.js'
 export * from './channels.js'
 export * from './cluster.js'
+export * from './devnet.js'
 export * from './keys.js'
 export * from './memo.js'
 export * from './rpc.js'
