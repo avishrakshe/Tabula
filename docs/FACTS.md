@@ -41,6 +41,11 @@ Where this file disagrees with `PROMPT.md`, this file wins (the real API wins). 
 
 Source: `program/payment_channels/src/state/channel.rs`, `docs/003-program-instructions.md`, `README.md`.
 
+- **Launch:** the Solana Foundation announced Payment Channels on 2026-09-03
+  ([solana.com/news](https://solana.com/news/payment-channels-1-million-payments-per-second)). Press coverage
+  notes that the "1 million payments per second" figure comes from a controlled benchmark, not mainnet
+  throughput (checked 2026-10-04).
+
 - **Channel PDA** seeds: `[b"channel", payer, payee, mint, authorized_signer, salt u64 LE, open_slot u64 LE]`.
   The 256-byte fixed layout (status, deposit, settled and payout watermarks, closure timestamp, grace period,
   distribution hash, payer, payee, authorized_signer, mint, rent_payer, open_slot).
