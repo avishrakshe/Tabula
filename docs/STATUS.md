@@ -215,6 +215,32 @@ _Last updated 2026-10-04._
    - **`.vercelignore`:** the CLI uploads the working directory and ignores `.gitignore`, so this file keeps
      `keys/`, `data/` and `.env*` out of uploads (anchored, so `src/lib/data` still ships).
    - **Next (DEPLOY.md phase 1):** the live devnet demo on Supabase.
+   - **Phase 1 progress (2026-10-04):**
+     - **Postgres ledger:** Supabase when deployed, PGlite locally (no install), with Drizzle migrations
+       0000–0002. `pnpm demo` ran end to end on it: 6/6 batches matched their memos, 4/4 channels
+       `MATCHED`, and the vault delta was exact.
+     - **Gateway safe across instances:**
+       - signing runs under a per-agent transaction lock that re-reads the channel, status, kill switch,
+         policies and spend;
+       - closes are claimed atomically, forced closes are resumable, and anchoring claims its rows before
+         sending;
+       - all 19 sandbox integration tests pass.
+     - **Keys:** derived from `TABULA_KEY_SEED` (HMAC-SHA256 per key name).
+     - **Hosted vendors:** a Postgres MPP `SessionStore` (tested: atomic under concurrency, exact bigints)
+       and `createHostedVendor`.
+     - **`@solana/mpp` patch `tabula.1`:** `distribute` uses the devnet program's treasury owner on devnet
+       (see `vendor/README.md`).
+     - **Devnet helpers:** faucet, SOL moves, a test-USDC mint, and `scripts/devnet-wallets.ts`. The seed is
+       in the gitignored `.env.devnet`.
+     - **Blocked on the founders:**
+       - devnet SOL: the public faucet refuses this machine, so fund the operator
+         `3xGTJU3LN5oBMJwH9Nk644258bBatfw8of85YzhhT1Yr` at faucet.solana.com;
+       - the Supabase project's values in `.env`.
+     - **Still to build:**
+       - the devnet setup (test mint, vault, allowances, registry);
+       - `/api/v1/*`, `/api/vendors/*`, the demo runner (tick-based, lock, rate limit, funds watchdog),
+         Realtime and cron;
+       - the deploy checklist.
 1. **Ship:**
    - **Done (2026-10-04):** README (pitch, architecture diagram, quickstart, deploy steps, real versus
      mocked), `docs/PITCH.md` and `docs/VIDEO.md` (shot list). A fresh clone of `main` installs with
