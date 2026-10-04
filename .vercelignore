@@ -1,0 +1,23 @@
+# The Vercel CLI uploads the working directory and does not read .gitignore: never ship secrets or local state.
+keys/
+data/
+.env
+.env.*
+!.env.example
+*.keypair.json
+id.json
+*.sqlite
+*.sqlite-*
+*.db
+
+# build output and caches (Vercel builds from source)
+node_modules/
+.next/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+apps/web/public/gpu/
+
+# reading material, not part of the build
+.vendor/
