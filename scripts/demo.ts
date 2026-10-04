@@ -90,6 +90,38 @@ async function main() {
   )
   console.log(`Treasury vault ${gw.treasury.vaultAddress}: ${formatUsd(vaultStart)}\n`)
 
+  // record the run for the hosted dashboard's replay mode: the event stream plus API snapshots
+  const replayEvents: unknown[] = []
+  const snapshots: Record<string, unknown>[] = []
+  const get = async (url: string) =>
+    (
+      await app.inject({ method: 'GET', url, headers: { authorization: `Bearer ${config.adminToken}` } })
+    ).json()
+  const snapshot = async () => ({
+    t: Date.now() - t0,
+    overview: await get('/v1/overview'),
+    agents: await get('/v1/agents'),
+    vendors: await get('/v1/vendors'),
+    float: await get('/v1/float'),
+    channels: await get('/v1/channels'),
+    scores: await get('/v1/scores'),
+    reconcile: await get('/v1/reconcile'),
+    batches: await get('/v1/batches'),
+    challenges: await get('/v1/challenges'),
+    policies: await get('/v1/policies'),
+  })
+  let snapping = false
+  const snapTimer = setInterval(() => {
+    if (snapping) return
+    snapping = true
+    snapshot()
+      .then((s) => snapshots.push(s))
+      .catch(() => {})
+      .finally(() => {
+        snapping = false
+      })
+  }, 3_000 * SCALE)
+
   // narrate the events the dashboard shows, and record them as the site's replay fixture
   const narrated = new Set([
     'session_opened',
@@ -103,10 +135,11 @@ async function main() {
     'float_sized',
   ])
   gw.bus.subscribe((e: GatewayEvent) => {
-    appendFileSync(
-      eventsFile,
-      `${JSON.stringify({ ...e, t: Date.now() - t0 }, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}\n`,
+    const line = JSON.stringify({ ...e, t: Date.now() - t0 }, (_k, v) =>
+      typeof v === 'bigint' ? v.toString() : v,
     )
+    appendFileSync(eventsFile, `${line}\n`)
+    replayEvents.push(JSON.parse(line))
     if (narrated.has(e.type))
       say('tabula', `${e.message}${e.explorerUrl ? `\n${' '.repeat(21)}${e.explorerUrl}` : ''}`)
     if (e.type === 'voucher' && (e.data as { row?: { verdict?: string } }).row?.verdict === 'blocked')
@@ -184,8 +217,10 @@ async function main() {
 
   console.log('\n--- onchain receipts')
   await gw.anchorer.anchorAll()
+  const batchDetails: Record<string, unknown> = {}
   for (const b of await gw.ledger.db.select().from(schema.batches)) {
     const v = await gw.anchorer.verify(b.id)
+    batchDetails[b.id] = { rows: await gw.anchorer.batchRows(b.id), verification: v }
     console.log(
       `${v.match ? 'MATCH   ' : 'MISMATCH'} batch ${b.id}: ${v.voucherCount} vouchers, root ${v.recomputedRoot.slice(0, 16)}…  ${v.explorerUrl}`,
     )
@@ -217,6 +252,36 @@ async function main() {
     `vault: ${formatUsd(vaultStart)} -> ${formatUsd(vaultEnd)} (vendors earned ${formatUsd(vaultStart - vaultEnd)})`,
   )
   console.log(`ledger CSV: ${csvFile}\nreplay events: ${eventsFile}\nledger DB: ${config.dbPath}`)
+
+  // the hosted dashboard replays this run without a gateway (public data only: no keys)
+  clearInterval(snapTimer)
+  while (snapping) await new Promise((r) => setTimeout(r, 100))
+  snapshots.push(await snapshot())
+  const replay = {
+    meta: {
+      cluster: config.cluster.name,
+      rpcUrl: config.cluster.rpcUrl,
+      recordedAt: new Date(t0).toISOString(),
+      durationMs: Date.now() - t0,
+      vault: gw.treasury.vaultAddress,
+      vaultStart: vaultStart.toString(),
+      vaultEnd: vaultEnd.toString(),
+      timeScale: SCALE,
+    },
+    events: replayEvents,
+    snapshots,
+    final: {
+      vouchers: await get('/v1/vouchers?limit=5000'),
+      events: await get('/v1/events?limit=2000'),
+      batchDetails,
+    },
+  }
+  const replayJson = JSON.stringify(replay)
+  writeFileSync(join(dataDir, 'replay.json'), replayJson)
+  const webReplay = join(dirname(dataDir), 'apps', 'web', 'public', 'replay', 'demo.json')
+  mkdirSync(dirname(webReplay), { recursive: true })
+  writeFileSync(webReplay, replayJson)
+  console.log(`replay fixture: ${webReplay} (${Math.round(replayJson.length / 1024)} KB)`)
 
   if (HOLD) {
     console.log(`\nHolding: gateway ${gatewayUrl} and vendors stay up. Ctrl+C to exit.`)
