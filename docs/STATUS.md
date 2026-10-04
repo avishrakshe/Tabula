@@ -7,7 +7,7 @@ _Last updated 2026-10-04._
 | M1 Spike and facts | ✅ done | `m1-spike` |
 | M2 Gateway, policy, verification | ✅ done (site skeleton still open) | `m2-gateway` |
 | M3 Kill and float ‖ 3D hero | ✅ kill/float done (3D hero not started) | `m3-kill-float` |
-| M4 Ledger, receipts, reconciliation, scorecards | in progress (pure logic shipped in M2; batcher and reports written) | |
+| M4 Ledger, receipts, reconciliation, scorecards | ✅ done (plus `pnpm demo`) | `m4-ledger` |
 | M5 Dashboard | not started | |
 
 ## What works (run, not assumed)
@@ -91,6 +91,36 @@ _Last updated 2026-10-04._
   `GET /v1/float` shows the escrow tied up per channel and per vendor.
 - The test ends with exact vault accounting: vault after = vault before − Σ settled onchain.
 
+### M4: onchain receipts, reconciliation, scorecards (sandbox integration test `receipts.test.ts`, 7 tests)
+
+- The gateway anchors the ledger every 40 vouchers (and at shutdown). Each batch is the next contiguous run of
+  finalized rows; its root is a sorted-pair SHA-256 Merkle root over canonical rows, written with the Memo
+  program as `tabula:v1 batch=… root=…`.
+- `scripts/verify-batch.ts` and `POST /v1/batches/:id/verify` recompute each root from the ledger and compare
+  it with the memo read back from the chain. `GET /v1/batches/:id` returns canonical rows so the dashboard
+  can recompute the root in the browser. An edited row is detected.
+- `GET /v1/reconcile`: one row per closed channel, ledger signed vs. the onchain `settled` watermark (re-read
+  while the account exists).
+- `GET /v1/scores`: waste %, cost per completed task, p95 latency, and cheaper-option hints.
+- `GET /v1/export.csv`: every voucher, with its batch transaction link.
+
+### `pnpm demo` (after `pnpm setup`): verified run on the sandbox, 2026-10-04
+
+- Three agents open channels funded from the Squads vault allowances.
+- coder-01's poisoned "faster mirror" is blocked as `PAYEE_MISMATCH` before anything is signed, and it falls
+  back to the registered vendor.
+- rogue-01 is prompt-injected at 0:45. The velocity rule blocks a specific voucher at 0:59 ("Stopped paying
+  rogue-01: spent $0.06125 in 60s (limit $0.06)"). The channel closes cooperatively at $0.06 settled, and the
+  $0.565 refund is swept back to the vault.
+- The idle sweep at 2:00 reclaims coder-01's abandoned channel ($0.616).
+- Close-out:
+  - 7 batches anchored, 7/7 verified (`verify-batch` too);
+  - 4/4 channels `MATCHED`;
+  - scorecards: inference-b wasted 9.1% of paid calls, and inference-a does the same task 28% cheaper;
+  - vault $1,000.00 → $999.73925, exactly what vendors settled ($0.26075);
+  - 247 vouchers signed, 1 blocked.
+- Outputs: `data/demo-ledger.csv`, `data/demo-events.jsonl` (replay log), `data/demo.sqlite`.
+
 ## What is mocked or simplified
 
 - **Funding.** With `pnpm setup` the money comes from a real Squads vault through real onchain allowances
@@ -105,7 +135,8 @@ _Last updated 2026-10-04._
 
 ## Next
 
-1. **M4:** wire the anchoring batcher (Memo) into the gateway, add `scripts/verify-batch.ts`, and add the
-   reconcile, scorecard and CSV export endpoints.
-2. **Demo:** `scripts/demo.ts` with the scripted agents (`apps/agents`).
-3. **Site:** the Next.js app skeleton (marketing plus dashboard shell, design tokens) and the 3D hero.
+1. **M5 dashboard** (`apps/web`, `/app`): Overview, Agents, Vendors, Ledger and Reconciliation, live over
+   SSE; Channels and Policies simpler.
+2. **Replay:** record API snapshots during `pnpm demo` so the hosted dashboard can replay the run without a
+   gateway.
+3. **Site:** the marketing page and the 3D hero (`/`, `/hero-embed`).
