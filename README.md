@@ -14,6 +14,9 @@ books can't see it. A prompt-injected agent can empty its escrow before anyone l
 - It sweeps idle escrow back to your treasury.
 - It anchors a receipt for every voucher onchain and reconciles each channel against what settled.
 
+> **Live:** <https://tabula-agents.vercel.app> (the landing page) and
+> <https://tabula-agents.vercel.app/app> (the dashboard, replaying a recorded run).
+>
 > Built for Colosseum's Crypto World's Fair (Solana track). Everything below runs against the hosted
 > **Solana Payment Sandbox** (a mainnet clone with test balances). No real funds move.
 > Progress and verified facts: [`docs/STATUS.md`](docs/STATUS.md), [`docs/FACTS.md`](docs/FACTS.md).

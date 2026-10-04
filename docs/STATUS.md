@@ -201,6 +201,20 @@ _Last updated 2026-10-04._
 
 ## Next
 
+0. **Deployed (safety net, DEPLOY.md phase 0), 2026-10-04:** <https://tabula-agents.vercel.app>.
+   - **Project:** Vercel `avishrakshes-projects/tabula-agents`, root directory `apps/web`, Node 24, and
+     `ENABLE_EXPERIMENTAL_COREPACK=1` (so pnpm 11 builds).
+   - **What it serves:** the landing page, the 3D hero, the dashboard replaying the recorded run, `/hero-embed`
+     and the social card.
+   - **Production checks:**
+     - every route returns 200 publicly;
+     - the CSP holds (no violations, and only `/hero-embed` can be framed);
+     - the console is clean (no gateway probe on a hosted origin);
+     - in-browser Verify gives `MATCHED`;
+     - Lighthouse desktop: Performance 84, Accessibility 100, Best Practices 100, SEO 100.
+   - **`.vercelignore`:** the CLI uploads the working directory and ignores `.gitignore`, so this file keeps
+     `keys/`, `data/` and `.env*` out of uploads (anchored, so `src/lib/data` still ships).
+   - **Next (DEPLOY.md phase 1):** the live devnet demo on Supabase.
 1. **Ship:**
    - **Done (2026-10-04):** README (pitch, architecture diagram, quickstart, deploy steps, real versus
      mocked), `docs/PITCH.md` and `docs/VIDEO.md` (shot list). A fresh clone of `main` installs with
