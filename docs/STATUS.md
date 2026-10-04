@@ -8,7 +8,7 @@ _Last updated 2026-10-04._
 | M2 Gateway, policy, verification | ✅ done (site skeleton still open) | `m2-gateway` |
 | M3 Kill and float ‖ 3D hero | ✅ kill/float done (3D hero not started) | `m3-kill-float` |
 | M4 Ledger, receipts, reconciliation, scorecards | ✅ done (plus `pnpm demo`) | `m4-ledger` |
-| M5 Dashboard | code complete; visual check and replay fixture pending (see below) | |
+| M5 Dashboard | ✅ checked in a browser, live and replay; dashboard actions not yet clicked through (see below) | |
 
 ## What works (run, not assumed)
 
@@ -116,12 +116,14 @@ _Last updated 2026-10-04._
 - Close-out:
   - 7 batches anchored, 7/7 verified (`verify-batch` too);
   - 4/4 channels `MATCHED`;
-  - scorecards: inference-b wasted 9.1% of paid calls, and inference-a does the same task 28% cheaper;
-  - vault $1,000.00 → $999.73925, exactly what vendors settled ($0.26075);
-  - 247 vouchers signed, 1 blocked.
-- Outputs: `data/demo-ledger.csv`, `data/demo-events.jsonl` (replay log), `data/demo.sqlite`.
+  - scorecards: inference-b wasted 9.1% of paid calls, and inference-a does the same task 27% cheaper;
+  - vault $997.7315 → $997.47375, down exactly what vendors settled onchain ($0.25775); the demo prints
+    this check, and first sweeps any float an interrupted earlier run left in agent wallets;
+  - 244 vouchers signed, 1 blocked.
+- Outputs: `data/demo-ledger.csv`, `data/demo-events.jsonl` (replay log), `data/demo.sqlite`, and the
+  committed replay fixture `apps/web/public/replay/demo.json` (public data only).
 
-### M5: dashboard (`apps/web`, `/app`): code complete, not yet looked at in a browser
+### M5: dashboard (`apps/web`, `/app`)
 
 - **Pages:**
   - **Overview:** KPIs, cumulative spend by agent, live voucher feed, onchain activity.
@@ -138,13 +140,17 @@ _Last updated 2026-10-04._
 - **Design:** Paymark-style tokens; `sever` and `matched` are reserved and always paired with an icon and a
   word. Light by default, with a dark mode. The chart palette passed the dataviz validator on `#fff` and
   `#141414`, and every chart has a table view.
-- **Verified:** `tsc` clean, Biome clean, and `next build` passed (it ran before the last small lint fixes).
-- **Pending:** `pnpm demo --hold` (which writes the replay fixture) and `pnpm --filter @tabula/web dev` were
-  both stopped by Claude Code when the machine ran low on memory. So:
-  - the replay fixture has not been generated yet;
-  - the dashboard has not been checked visually;
-  - the interrupted demo left a few open sandbox channels (sandbox USDC only), recoverable with the idle
-    sweep.
+- **Verified (2026-10-04, `next build` + `next start`, Chrome):**
+  - replay mode, with no gateway running: every page at mid-run and at the end. The in-browser batch
+    Verify recomputes the Merkle root (12 ms) and it equals the onchain memo root;
+  - live mode against `pnpm demo --hold`: SSE feed, chart, kill timeline, Policies, and dark mode;
+  - fixes from that pass: the data layer was never committed (an unanchored `data/` gitignore rule), the
+    Active and Stopped pills looked alike, the kill message repeated itself, plus small copy and layout fixes.
+- **Not yet clicked through:** Stop/Resume, Confirm stop, Save policy and Sweep idle against a live gateway.
+  The Chrome window was minimized (`visibilityState: hidden` throttles timers and delays clicks), and its
+  tab group kept disappearing.
+- **Memory:** on this machine (~1 GB free with Chrome open), use `next build` + `next start`, not
+  `next dev`, and run one heavy process at a time.
 
 ## What is mocked or simplified
 
@@ -160,8 +166,7 @@ _Last updated 2026-10-04._
 
 ## Next
 
-1. Re-run `pnpm demo --hold` (writes `apps/web/public/replay/demo.json`) together with the web dev server,
-   and check every dashboard page in a browser, live and in replay.
+1. Click through the dashboard actions against `pnpm demo --hold` (needs a visible Chrome window).
 2. **Site:** the marketing page and the 3D hero (`/`, `/hero-embed`), styled after studying the Paymark
    reference in the browser.
 3. **M6/M7:** freeze, `docs/PITCH.md`, README, Vercel deploy, demo video.
