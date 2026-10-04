@@ -8,7 +8,14 @@ import { EventBus } from './events.js'
 import { PolicyService } from './policy-service.js'
 import { SessionManager } from './sessions.js'
 import { Store } from './store.js'
-import { CeilingTreasury, FaucetTreasury, loadTreasuryState, type Treasury } from './treasury.js'
+import {
+  CeilingTreasury,
+  FaucetTreasury,
+  loadTreasurySetting,
+  loadTreasuryState,
+  type Treasury,
+  type TreasuryState,
+} from './treasury.js'
 
 export interface Gateway {
   readonly config: GatewayConfig
@@ -25,9 +32,16 @@ export interface Gateway {
   close(): Promise<void>
 }
 
-/** The Squads-vault treasury when `pnpm setup` has created one for this cluster; otherwise the sandbox faucet. */
-export function defaultTreasury(config: GatewayConfig, rpc: SolanaRpc, custody: Custody): Treasury {
-  const state = loadTreasuryState(config.treasuryFile)
+/**
+ * The Squads-vault treasury when setup has created one for this cluster (from the state file, or from
+ * the ledger's settings on a serverless instance); otherwise the sandbox faucet.
+ */
+export function defaultTreasury(
+  config: GatewayConfig,
+  rpc: SolanaRpc,
+  custody: Custody,
+  state: TreasuryState | null = loadTreasuryState(config.treasuryFile),
+): Treasury {
   if (
     state &&
     state.cluster === config.cluster.name &&
@@ -59,7 +73,14 @@ export async function createGateway(
   await policy.load()
   signer.setGlobalKill(policy.globalKill)
   for (const a of await store.agents()) if (a.status === 'killed') signer.markKilled(a.id)
-  const treasury = opts.treasury ? await opts.treasury(rpc, custody) : defaultTreasury(config, rpc, custody)
+  const treasury = opts.treasury
+    ? await opts.treasury(rpc, custody)
+    : defaultTreasury(
+        config,
+        rpc,
+        custody,
+        loadTreasuryState(config.treasuryFile) ?? (await loadTreasurySetting(ledger.db)),
+      )
   const sessions = new SessionManager(config, rpc, store, custody, signer, policy, treasury, bus)
   // a long-running gateway rebuilds its sessions and settles calls cut off by its last stop; serverless
   // instances load sessions on demand and leave dangling calls to the sweep (others may still be in flight)

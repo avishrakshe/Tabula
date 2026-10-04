@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Address, KeyPairSigner } from '@solana/kit'
+import { first, type LedgerDb, schema } from '@tabula/ledger'
+import { eq } from '@tabula/ledger/sql'
 import { formatUsd } from '@tabula/policy'
 import {
   buildPullFromAllowance,
@@ -128,6 +130,20 @@ export function loadTreasuryState(file: string): TreasuryState | null {
 export function saveTreasuryState(file: string, state: TreasuryState): void {
   mkdirSync(dirname(file), { recursive: true })
   writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`)
+}
+
+/** The treasury setup as stored in the ledger's settings table (serverless instances have no state file). */
+export async function loadTreasurySetting(db: LedgerDb): Promise<TreasuryState | null> {
+  const row = await first(db.select().from(schema.settings).where(eq(schema.settings.key, 'treasury')))
+  return row ? (JSON.parse(row.valueJson) as TreasuryState) : null
+}
+
+export async function saveTreasurySetting(db: LedgerDb, state: TreasuryState): Promise<void> {
+  const valueJson = JSON.stringify(state)
+  await db
+    .insert(schema.settings)
+    .values({ key: 'treasury', valueJson, updatedAt: Date.now() })
+    .onConflictDoUpdate({ target: schema.settings.key, set: { valueJson, updatedAt: Date.now() } })
 }
 
 export class CeilingTreasury implements Treasury {

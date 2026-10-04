@@ -42,15 +42,24 @@ export const DEMO_AGENTS: AgentSpec[] = [
   },
 ]
 
-/** Registers the demo vendors (not the malicious mirror) with their payees from keys/. */
-export async function registerDemoVendors(gw: Gateway): Promise<{ id: string; payee: string }[]> {
+/** Where a demo vendor answers: its local port, or under `base` when hosted (`<base>/<id>/v1/infer`). */
+export function vendorEndpoint(v: { id: string; port: number }, base?: string): string {
+  return base ? `${base.replace(/\/$/, '')}/${v.id}/v1/infer` : `http://127.0.0.1:${v.port}/v1/infer`
+}
+
+/** Registers the demo vendors (not the malicious mirror) with their payees (keys/ or derived). */
+export async function registerDemoVendors(
+  gw: Gateway,
+  base?: string,
+): Promise<{ id: string; payee: string; endpoint: string }[]> {
   const out = []
   for (const v of DEMO_VENDORS.filter((x) => x.id !== 'mirror')) {
     const payee = await loadOrCreateKeypair(v.payeeKey)
+    const endpoint = vendorEndpoint(v, base)
     await registerVendor(gw, {
       id: v.id,
       name: v.name,
-      endpoint: `http://127.0.0.1:${v.port}/v1/infer`,
+      endpoint,
       payeePubkey: payee.address,
       mint: address(gw.config.mint),
       programId: gw.config.cluster.paymentChannelsProgram,
@@ -59,7 +68,7 @@ export async function registerDemoVendors(gw: Gateway): Promise<{ id: string; pa
       maxUnitPrice: Number(v.unitPrice) * 2,
       taskType: v.taskType,
     })
-    out.push({ id: v.id, payee: payee.address })
+    out.push({ id: v.id, payee: payee.address, endpoint })
   }
   return out
 }

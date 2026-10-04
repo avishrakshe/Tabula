@@ -33,6 +33,11 @@ export async function ensureTreasury(args: {
   readonly file: string
   /** Sandbox/localnet only: USDC to put in a freshly created vault via cheatcodes. */
   readonly fundVault?: bigint
+  /**
+   * Clusters without cheatcodes: funds the vault (its token account must exist before the
+   * SubscriptionAuthority can be initialized, and it pays rent for accounts it creates). Idempotent.
+   */
+  readonly prepareVault?: (vault: Address) => Promise<void>
   readonly log?: TreasurySetupLog
 }): Promise<TreasuryState> {
   const log = args.log ?? (() => {})
@@ -67,6 +72,7 @@ export async function ensureTreasury(args: {
     }
     saveTreasuryState(args.file, state)
   }
+  if (!cluster.cheatcodes && args.prepareVault) await args.prepareVault(vault.vault)
   if ((await subscriptionAuthorityInitId(rpc, vault.vault, mint)) === null) {
     const r = await executeAsVault(rpc, cluster.rpcUrl, vault, args.admin, [
       await buildInitSubscriptionAuthority(vault.vault, mint),
