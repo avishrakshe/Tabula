@@ -6,8 +6,8 @@ _Last updated 2026-10-04._
 |---|---|---|
 | M1 Spike and facts | ✅ done | `m1-spike` |
 | M2 Gateway, policy, verification | ✅ done (site skeleton still open) | `m2-gateway` |
-| M3 Kill and float ‖ 3D hero | next | |
-| M4 Ledger, receipts, reconciliation, scorecards | partly done (pure logic shipped in M2) | |
+| M3 Kill and float ‖ 3D hero | ✅ kill/float done (3D hero not started) | `m3-kill-float` |
+| M4 Ledger, receipts, reconciliation, scorecards | in progress (pure logic shipped in M2; batcher and reports written) | |
 | M5 Dashboard | not started | |
 
 ## What works (run, not assumed)
@@ -71,23 +71,41 @@ _Last updated 2026-10-04._
 - Restart recovery: open sessions are rebuilt from the ledger, and unfinished vendor calls are marked as
   timeouts.
 
+### M3: onchain ceiling, kill path and float manager (sandbox integration test `kill-float.test.ts`, 5 tests)
+
+- `pnpm setup` (idempotent):
+  - creates a Squads v4 vault holding $1,000 (sandbox USDC) and the vault's SubscriptionAuthority;
+  - grants a $5/day recurring allowance to each demo agent wallet (Subscriptions program, via vault
+    transactions);
+  - writes the vendor registry, policies, and agent API keys (to the gitignored `keys/agents.json`).
+- `CeilingTreasury`: each deposit is pulled just in time from the agent's allowance, so the onchain ceiling
+  holds even if every off-chain check failed. An allowance that can't fund a deposit returns
+  `ONCHAIN_CEILING`.
+- Float sizing = min(what's available under the allowance, per-task budget, p95 of past sessions × 1.2).
+  The reasoning is logged as a `float_sized` event.
+- Kill path, tested end to end with the real vault:
+  - velocity trip → cooperative close at the last signed voucher → refund → swept back to the vault;
+  - with the vendor down → forced close (request_close, 60s grace period on the cluster clock, seal,
+    distribute) → full refund → swept.
+- Idle sweep: `POST /v1/float/sweep` closes idle channels and returns idle wallet float to the vault.
+  `GET /v1/float` shows the escrow tied up per channel and per vendor.
+- The test ends with exact vault accounting: vault after = vault before − Σ settled onchain.
+
 ## What is mocked or simplified
 
-- **Funding.** Agent wallets are topped up with surfnet cheatcodes (`FaucetTreasury`). The onchain ceiling
-  (Squads vault plus Subscriptions-program allowance) is M3.
+- **Funding.** With `pnpm setup` the money comes from a real Squads vault through real onchain allowances
+  (sandbox balances). Without setup, tests fall back to `FaucetTreasury` (cheatcode top-ups).
+- **The shared sandbox's clock drifts** (other users time-travel it). All onchain waits poll the cluster
+  clock. There is no local surfpool on Windows (the npm package ships only macOS and Linux binaries).
 - **Vendors are local mocks**, but they run the real `@solana/mpp` session server against the real
   payment-channels program on the sandbox.
 - **`@solana/mpp` 0.11.0 is vendored** (built from pay-kit source; npm only has 0.7.0).
-- **The forced close path is implemented but not yet integration-tested** (the vendor grace period is 60s;
-  that test lands in M3).
+- **No automatic top-ups yet.** When a channel's escrow is used up, the voucher is refused with
+  `CHANNEL_DEPOSIT` and the agent opens a new session.
 
 ## Next
 
-1. **M3:**
-   - the onchain-ceiling treasury: Squads vault, a Subscriptions-program delegation per agent, and a
-     just-in-time pull before open;
-   - sweep refunds back to the vault;
-   - float sizing with the p95 of past sessions, top-ups within the ceiling, and the idle sweeper;
-   - a forced-close integration test (vendor down).
-2. **M4:** the anchoring batcher (Memo), `scripts/verify-batch.ts`, and reconcile, export and scorecard endpoints.
+1. **M4:** wire the anchoring batcher (Memo) into the gateway, add `scripts/verify-batch.ts`, and add the
+   reconcile, scorecard and CSV export endpoints.
+2. **Demo:** `scripts/demo.ts` with the scripted agents (`apps/agents`).
 3. **Site:** the Next.js app skeleton (marketing plus dashboard shell, design tokens) and the 3D hero.
