@@ -5,10 +5,11 @@ _Last updated 2026-10-04._
 | Milestone | State | Tag |
 |---|---|---|
 | M1 Spike and facts | ✅ done | `m1-spike` |
-| M2 Gateway, policy, verification | ✅ done (site skeleton still open) | `m2-gateway` |
-| M3 Kill and float ‖ 3D hero | ✅ kill/float done (3D hero not started) | `m3-kill-float` |
+| M2 Gateway, policy, verification | ✅ done | `m2-gateway` |
+| M3 Kill and float ‖ 3D hero | ✅ done (hero landed with the site, after M5) | `m3-kill-float` |
 | M4 Ledger, receipts, reconciliation, scorecards | ✅ done (plus `pnpm demo`) | `m4-ledger` |
 | M5 Dashboard | ✅ checked in a browser, live and replay, including every action | `m5-dashboard` |
+| Site: landing page and 3D hero | ✅ built and checked (desktop, 390px, Lighthouse); open items below | |
 
 ## What works (run, not assumed)
 
@@ -155,6 +156,37 @@ _Last updated 2026-10-04._
 - **Memory:** on this machine (~1 GB free with Chrome open), use `next build` + `next start`, not
   `next dev`, and run one heavy process at a time.
 
+### Site: landing page (`/`) and 3D hero (`/hero-embed`)
+
+- **Style:** follows the Paymark reference as checked in the browser. It is dark throughout (the reference has
+  no light bands), with warm glows, 22–28px frames and centered intros. All copy and assets are original.
+- **Facts:** every number comes from the recorded run, read at build time (`src/lib/run-facts.ts`):
+  - voucher #49 blocked 13 s after the injection; $0.06 settled and $0.565 refunded;
+  - the idle sweep reclaimed $0.61625;
+  - 7/7 batches verified and 4/4 channels `MATCHED`;
+  - the vault went down exactly the $0.25775 vendors settled;
+  - scorecards.
+- **Screenshots:** every feature image is a real dashboard screenshot. Re-capture them with
+  `pnpm tsx scripts/capture-shots.ts`, which uses headless Edge or Chrome through the replay
+  (`/app?replay&t=<s>&theme=dark`).
+- **Hero:** React Three Fiber + three.js, deterministic.
+  - At 4 s the rogue's stream turns red; at 5.6 s the crack appears, the stream falls into the vault, and
+    the refund follows.
+  - Additive glow sprites stand in for bloom, and shaders are precompiled with `compileAsync`.
+  - It starts after `load` once the browser is idle, cross-fading from a CSS stand-in.
+  - It pauses off-screen and uses detect-gpu tiers (benchmarks served from `/gpu`, copied at build).
+  - Reduced motion gets a still frame.
+  - Overrides: `?quality=high|low|none` and `?still`.
+- **Checked:**
+  - desktop and 390px (no horizontal overflow);
+  - `/hero-embed` is transparent, with no nav and `noindex`;
+  - Lighthouse desktop (headless Edge): Performance 92/85 over two runs (100 with the scene off),
+    Accessibility 100, Best Practices 100, LCP 0.8–0.9 s, CLS 0.
+- **Open:**
+  - The Scale plan has no price yet ("pricing on request"); the user decides the numbers.
+  - The footer has no demo-video or Colosseum link until they exist.
+  - "Watch the demo" opens the recorded run (`/app?replay`), not a video.
+
 ## What is mocked or simplified
 
 - **Funding.** With `pnpm setup` the money comes from a real Squads vault through real onchain allowances
@@ -169,6 +201,5 @@ _Last updated 2026-10-04._
 
 ## Next
 
-1. **Site:** the marketing page and the 3D hero (`/`, `/hero-embed`), styled after studying the Paymark
-   reference in the browser.
-2. **M6/M7:** freeze, `docs/PITCH.md`, README, Vercel deploy, demo video.
+1. **M6/M7:** freeze, `docs/PITCH.md`, README, Vercel deploy (the build copies `/gpu` itself), demo
+   video. Then link the video and the Colosseum submission from the site.
