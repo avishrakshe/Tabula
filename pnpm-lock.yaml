@@ -32,8 +32,8 @@ importers:
         specifier: 6.10.0
         version: 6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@solana/mpp':
-        specifier: file:../../vendor/solana-mpp-0.11.0.tgz
-        version: file:vendor/solana-mpp-0.11.0.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)
+        specifier: file:../../vendor/solana-mpp-0.11.0-tabula.1.tgz
+        version: file:vendor/solana-mpp-0.11.0-tabula.1.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)
       '@tabula/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
@@ -69,8 +69,8 @@ importers:
         specifier: 6.10.0
         version: 6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@solana/mpp':
-        specifier: file:../../vendor/solana-mpp-0.11.0.tgz
-        version: file:vendor/solana-mpp-0.11.0.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)
+        specifier: file:../../vendor/solana-mpp-0.11.0-tabula.1.tgz
+        version: file:vendor/solana-mpp-0.11.0-tabula.1.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)
       '@tabula/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
@@ -220,8 +220,8 @@ importers:
         specifier: 6.10.0
         version: 6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@solana/mpp':
-        specifier: file:../vendor/solana-mpp-0.11.0.tgz
-        version: file:vendor/solana-mpp-0.11.0.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)
+        specifier: file:../vendor/solana-mpp-0.11.0-tabula.1.tgz
+        version: file:vendor/solana-mpp-0.11.0-tabula.1.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)
       '@tabula/agents':
         specifier: workspace:*
         version: link:../apps/agents
@@ -1646,8 +1646,8 @@ packages:
       typescript:
         optional: true
 
-  '@solana/mpp@file:vendor/solana-mpp-0.11.0.tgz':
-    resolution: {integrity: sha512-qWYtlv4+yW8mORnSCU62qTQCLTi9DGSXUlBWZlUbFwqhCxETVF/BW6YOp9vvDm74ZcTjLT+K2aGeKbn/uA0fEw==, tarball: file:vendor/solana-mpp-0.11.0.tgz}
+  '@solana/mpp@file:vendor/solana-mpp-0.11.0-tabula.1.tgz':
+    resolution: {integrity: sha512-ly139iZdgFiUaHdmY3xVyBOoAM63jpk212hkTXelOPQsLYCItpHPr5dIbebh3ii+WQMlLIr/4fyfUArO/zbgaQ==, tarball: file:vendor/solana-mpp-0.11.0-tabula.1.tgz}
     version: 0.11.0
     peerDependencies:
       '@solana/kit': '>=6.10.0'
@@ -4617,7 +4617,7 @@ snapshots:
       - fastestsmallesttextencoderdecoder
       - utf-8-validate
 
-  '@solana/mpp@file:vendor/solana-mpp-0.11.0.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)':
+  '@solana/mpp@file:vendor/solana-mpp-0.11.0-tabula.1.tgz(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(mppx@0.8.15(hono@4.13.12)(typescript@5.9.3)(viem@2.57.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.6.5)))(typescript@5.9.3)':
     dependencies:
       '@solana-program/compute-budget': 0.15.0(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana-program/system': 0.12.2(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
