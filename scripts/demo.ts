@@ -84,6 +84,13 @@ async function main() {
   const app = await buildApp(gw)
   await app.listen({ port: config.port, host: config.host })
   const gatewayUrl = `http://${config.host}:${config.port}`
+  // float an earlier (interrupted) run left in agent wallets goes back first, so the vault's
+  // change over this run is exactly what vendors settle
+  const leftover = await gw.sessions.sweepIdle(0)
+  if (BigInt(leftover.reclaimed) > 0n)
+    console.log(
+      `Returned ${formatUsd(BigInt(leftover.reclaimed))} of float left by an earlier run to the vault`,
+    )
   const vaultStart = (await gw.treasury.vaultBalance()) ?? 0n
   console.log(
     `Tabula demo on ${config.cluster.name}. Gateway ${gatewayUrl} (dashboard: admin token "${config.adminToken}")`,
@@ -227,7 +234,8 @@ async function main() {
   }
 
   console.log('\n--- reconciliation (ledger vs onchain settlement)')
-  for (const r of await reconcileAll(gw.ledger.db, gw.rpc, config.cluster)) {
+  const reconciled = await reconcileAll(gw.ledger.db, gw.rpc, config.cluster)
+  for (const r of reconciled) {
     console.log(
       `${r.status.padEnd(14)} ${r.agentId.padEnd(12)} ${r.vendorId.padEnd(12)} signed ${formatUsd(BigInt(r.ledgerSigned)).padEnd(10)} settled ${formatUsd(BigInt(r.settled)).padEnd(10)} ${r.explanation}`,
     )
@@ -248,8 +256,9 @@ async function main() {
   console.log(
     `vouchers: ${o.filter((v) => v.verdict === 'signed').length} signed, ${o.filter((v) => v.verdict === 'blocked').length} blocked`,
   )
+  const settledTotal = reconciled.reduce((acc, r) => acc + BigInt(r.settled), 0n)
   console.log(
-    `vault: ${formatUsd(vaultStart)} -> ${formatUsd(vaultEnd)} (vendors earned ${formatUsd(vaultStart - vaultEnd)})`,
+    `vault: ${formatUsd(vaultStart)} -> ${formatUsd(vaultEnd)} (down ${formatUsd(vaultStart - vaultEnd)}; vendors settled ${formatUsd(settledTotal)} onchain: ${vaultStart - vaultEnd === settledTotal ? 'exact' : 'DIFFERS'})`,
   )
   console.log(`ledger CSV: ${csvFile}\nreplay events: ${eventsFile}\nledger DB: ${config.dbPath}`)
 

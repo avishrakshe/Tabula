@@ -1052,7 +1052,11 @@ export class SessionManager {
       await this.bus.emit({
         type: 'agent_killed',
         agentId,
-        message: `Stopped ${agentId}: ${reason}`,
+        // a policy reason is already a sentence naming the agent ("Stopped paying rogue-01: …")
+        message:
+          by === 'policy'
+            ? `${reason}. ${agentId} is stopped and its channels are closing.`
+            : `Stopped ${agentId}: ${reason}`,
         data: { reason, by },
       })
     }
