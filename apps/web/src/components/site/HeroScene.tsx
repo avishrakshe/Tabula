@@ -8,11 +8,10 @@
  *
  * Deterministic (seeded) so the still frame for reduced motion is always the same picture.
  */
-import { Environment, Lightformer, RoundedBox } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, EffectComposer } from '@react-three/postprocessing'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 
 export interface HeroSceneProps {
   /** render loop runs only while the hero is on screen */
@@ -20,6 +19,8 @@ export interface HeroSceneProps {
   quality: 'low' | 'high'
   /** reduced motion: one still, lit frame */
   still: boolean
+  /** called once the shaders are compiled and frames can start (the stand-in fades out) */
+  onReady?: () => void
 }
 
 const WAX = new THREE.Color('#ff8975')
@@ -348,7 +349,41 @@ function ResponsiveCamera() {
   return null
 }
 
+/**
+ * Our "bloom": soft additive glows on exactly what should glow (tokens, the crack, the hot rogue).
+ * Far cheaper than a post-processing pass, whose shaders cost seconds to compile on some GPUs.
+ */
+function glowTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = 64
+  c.height = 64
+  const g = c.getContext('2d')!
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  grad.addColorStop(0, 'rgba(255,255,255,1)')
+  grad.addColorStop(0.22, 'rgba(255,255,255,0.42)')
+  grad.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 64, 64)
+  return new THREE.CanvasTexture(c)
+}
+
+/** A soft band, bright along its centre line: the crack's glow. */
+function bandTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = 4
+  c.height = 64
+  const g = c.getContext('2d')!
+  const grad = g.createLinearGradient(0, 0, 0, 64)
+  grad.addColorStop(0, 'rgba(255,255,255,0)')
+  grad.addColorStop(0.5, 'rgba(255,255,255,1)')
+  grad.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 4, 64)
+  return new THREE.CanvasTexture(c)
+}
+
 function World({ still }: { still: boolean }) {
+  const camera = useThree((s) => s.camera)
   const sim = useMemo(() => {
     const s = new Sim()
     if (still) while (s.time < STILL_AT) s.step(1 / 60)
@@ -369,16 +404,26 @@ function World({ still }: { still: boolean }) {
   }, [canvas])
   const ctx = useMemo(() => canvas.getContext('2d')!, [canvas])
 
+  const glowTex = useMemo(glowTexture, [])
+  const bandTex = useMemo(bandTexture, [])
+  const tabletGeometry = useMemo(() => new RoundedBoxGeometry(TABLET.w, TABLET.h, TABLET.d, 4, 0.07), [])
+  const vaultGeometry = useMemo(() => new RoundedBoxGeometry(2.1, 0.32, 1.0, 3, 0.06), [])
+
   const tokens = useRef<THREE.InstancedMesh>(null)
+  const glows = useRef<THREE.InstancedMesh>(null)
   const orbs = useRef<(THREE.Mesh | null)[]>([])
   const tablet = useRef<THREE.Group>(null)
   const crack = useRef<THREE.InstancedMesh>(null)
   const crackMat = useRef<THREE.MeshBasicMaterial>(null)
+  const crackGlow = useRef<THREE.InstancedMesh>(null)
+  const crackGlowMat = useRef<THREE.MeshBasicMaterial>(null)
+  const halo = useRef<THREE.Mesh>(null)
+  const haloMat = useRef<THREE.MeshBasicMaterial>(null)
   const slot = useRef<THREE.MeshBasicMaterial>(null)
   const rogueLight = useRef<THREE.PointLight>(null)
   const lastDraw = useRef(-1)
   const dummy = useMemo(() => new THREE.Object3D(), [])
-  const hdr = useMemo(() => new THREE.Color(), [])
+  const color = useMemo(() => new THREE.Color(), [])
   const segments = useMemo(() => {
     const pts = crackPoints()
     return pts.slice(1).map((b, i) => {
@@ -391,21 +436,35 @@ function World({ still }: { still: boolean }) {
     })
   }, [])
 
-  useEffect(() => () => texture.dispose(), [texture])
+  useEffect(
+    () => () => {
+      for (const d of [texture, glowTex, bandTex, tabletGeometry, vaultGeometry]) d.dispose()
+    },
+    [texture, glowTex, bandTex, tabletGeometry, vaultGeometry],
+  )
 
-  // lay the crack's segments once; the frame loop only reveals them
+  // per-instance colours exist before the shaders are precompiled, so adding them doesn't recompile
+  useLayoutEffect(() => {
+    for (const mesh of [tokens.current, glows.current]) {
+      if (mesh && !mesh.instanceColor)
+        mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TOKENS * 3), 3)
+    }
+  }, [])
+
+  // lay the crack's segments (and their glow) once; the frame loop only reveals them
   useEffect(() => {
-    const mesh = crack.current
-    if (!mesh) return
-    segments.forEach((s, i) => {
-      dummy.position.copy(s.mid)
-      dummy.rotation.set(0, 0, s.angle)
-      dummy.scale.set(s.len, 1, 1)
-      dummy.updateMatrix()
-      mesh.setMatrixAt(i, dummy.matrix)
-    })
-    mesh.instanceMatrix.needsUpdate = true
-    mesh.count = 0
+    for (const mesh of [crack.current, crackGlow.current]) {
+      if (!mesh) continue
+      segments.forEach((s, i) => {
+        dummy.position.copy(s.mid)
+        dummy.rotation.set(0, 0, s.angle)
+        dummy.scale.set(s.len, 1, 1)
+        dummy.updateMatrix()
+        mesh.setMatrixAt(i, dummy.matrix)
+      })
+      mesh.instanceMatrix.needsUpdate = true
+      mesh.count = 0
+    }
   }, [segments, dummy])
 
   useFrame((_state, delta) => {
@@ -439,17 +498,21 @@ function World({ still }: { still: boolean }) {
       const orb = orbs.current[i]
       if (!orb) continue
       sim.orbPos(i, t, orb.position)
-      const mat = orb.material as THREE.MeshPhysicalMaterial
+      const mat = orb.material as THREE.MeshStandardMaterial
       if (i === ROGUE) {
         const heat = sim.killed ? 0 : Math.min(1, Math.max(0, (t - ROGUE_SPEEDUP) / 0.6))
         if (sim.killed) {
           mat.color.setRGB(0.2, 0.2, 0.22)
           mat.emissiveIntensity = 0
         } else {
-          mat.color.copy(ORB).lerp(SEVER, heat * 0.6)
+          mat.color.copy(ORB).lerp(SEVER, heat * 0.85)
           mat.emissive.copy(ORB_GLOW).lerp(SEVER, heat)
-          // the rogue's core runs hot enough to bloom
-          mat.emissiveIntensity = 0.3 + heat * 3.2
+          mat.emissiveIntensity = 0.25 + heat * 0.9
+        }
+        if (halo.current && haloMat.current) {
+          halo.current.position.copy(orb.position)
+          halo.current.quaternion.copy(camera.quaternion)
+          haloMat.current.color.copy(SEVER).multiplyScalar(heat * 0.9)
         }
         if (rogueLight.current) {
           rogueLight.current.position.copy(orb.position)
@@ -459,7 +522,8 @@ function World({ still }: { still: boolean }) {
     }
 
     const mesh = tokens.current
-    if (mesh) {
+    const glow = glows.current
+    if (mesh && glow) {
       let n = 0
       for (const tok of sim.tokens) {
         if (!tok.on) continue
@@ -472,21 +536,32 @@ function World({ still }: { still: boolean }) {
         dummy.scale.setScalar(Math.max(0.001, s))
         dummy.updateMatrix()
         mesh.setMatrixAt(n, dummy.matrix)
-        // HDR colour so only the tokens cross the bloom threshold
-        mesh.setColorAt(n, hdr.copy(tok.color).multiplyScalar(tok.refund ? 2.2 : 2.8))
+        mesh.setColorAt(n, tok.color)
+        // the glow faces the camera
+        dummy.quaternion.copy(camera.quaternion)
+        dummy.scale.setScalar(Math.max(0.001, s * (tok.refund ? 0.85 : 1)))
+        dummy.updateMatrix()
+        glow.setMatrixAt(n, dummy.matrix)
+        glow.setColorAt(n, color.copy(tok.color).multiplyScalar(tok.refund ? 0.55 : 0.8))
         n++
       }
       mesh.count = n
-      mesh.instanceMatrix.needsUpdate = true
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+      glow.count = n
+      for (const m of [mesh, glow]) {
+        m.instanceMatrix.needsUpdate = true
+        if (m.instanceColor) m.instanceColor.needsUpdate = true
+      }
     }
 
     // the crack runs left to right, flares, then cools to a faint scar
-    if (crack.current && crackMat.current) {
-      crack.current.count = Math.round(sim.crack * segments.length)
+    if (crack.current && crackMat.current && crackGlow.current && crackGlowMat.current) {
+      const shown = Math.round(sim.crack * segments.length)
+      crack.current.count = shown
+      crackGlow.current.count = shown
       const since = sim.killed ? t - KILL_AT : 0
-      const glow = 0.45 + 3.2 * Math.max(0, 1 - since / 2.2)
-      crackMat.current.color.setRGB(glow, glow * 0.66, glow * 0.56)
+      const flare = Math.max(0, 1 - since / 2.2)
+      crackMat.current.color.setRGB(0.55 + 0.45 * flare, 0.42 + 0.5 * flare, 0.38 + 0.5 * flare)
+      crackGlowMat.current.color.copy(WAX).multiplyScalar(0.12 + 0.9 * flare)
     }
 
     if (slot.current) slot.current.color.copy(WAX).multiplyScalar(0.35 + sim.vaultPulse * 2.4)
@@ -495,30 +570,33 @@ function World({ still }: { still: boolean }) {
   return (
     <>
       <ResponsiveCamera />
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[3, 4, 6]} intensity={1.1} color="#fff4ec" />
+      <ambientLight intensity={0.3} />
+      <hemisphereLight args={['#ffe9e2', '#0b0b0c', 0.6]} />
+      <directionalLight position={[3, 4, 6]} intensity={1.6} color="#fff4ec" />
+      {/* coral rim light from behind-left: catches the tablet's edges */}
+      <directionalLight position={[-5, 1.5, -3]} intensity={2.4} color="#ff8975" />
+      <directionalLight position={[4, -2, 3]} intensity={0.35} color="#ffffff" />
       <pointLight ref={rogueLight} color="#ff3b2f" intensity={0} distance={6} decay={1.6} />
 
       <group ref={tablet}>
-        <RoundedBox
-          args={[TABLET.w, TABLET.h, TABLET.d]}
-          radius={0.07}
-          smoothness={4}
-          position={[0, TABLET.y, 0]}
-        >
-          <meshPhysicalMaterial
-            color="#17171a"
-            roughness={0.42}
-            metalness={0.25}
-            clearcoat={1}
-            clearcoatRoughness={0.18}
-            envMapIntensity={0.9}
-          />
-        </RoundedBox>
+        <mesh geometry={tabletGeometry} position={[0, TABLET.y, 0]}>
+          <meshStandardMaterial color="#1a1a1d" roughness={0.36} metalness={0.4} />
+        </mesh>
         <mesh position={[0, TABLET.y, FACE_Z]}>
           <planeGeometry args={[TABLET.w - 0.16, (TABLET.w - 0.16) * (683 / 1024)]} />
           <meshBasicMaterial map={texture} transparent toneMapped={false} />
         </mesh>
+        <instancedMesh ref={crackGlow} args={[undefined, undefined, segments.length]} frustumCulled={false}>
+          <planeGeometry args={[1, 0.22]} />
+          <meshBasicMaterial
+            ref={crackGlowMat}
+            map={bandTex}
+            transparent
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            toneMapped={false}
+          />
+        </instancedMesh>
         <instancedMesh ref={crack} args={[undefined, undefined, segments.length]} frustumCulled={false}>
           <boxGeometry args={[1, 0.02, 0.006]} />
           <meshBasicMaterial ref={crackMat} toneMapped={false} />
@@ -533,26 +611,46 @@ function World({ still }: { still: boolean }) {
           }}
         >
           <sphereGeometry args={[0.13, 32, 32]} />
-          <meshPhysicalMaterial
+          <meshStandardMaterial
             color={ORB}
             emissive={ORB_GLOW}
-            emissiveIntensity={0.3}
-            roughness={0.18}
-            clearcoat={1}
-            toneMapped={false}
+            emissiveIntensity={0.25}
+            roughness={0.2}
+            metalness={0.05}
           />
         </mesh>
       ))}
+      <mesh ref={halo}>
+        <planeGeometry args={[1.3, 1.3]} />
+        <meshBasicMaterial
+          ref={haloMat}
+          map={glowTex}
+          transparent
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
+      </mesh>
 
       <instancedMesh ref={tokens} args={[undefined, undefined, MAX_TOKENS]} frustumCulled={false}>
         <boxGeometry args={[0.075, 0.075, 0.075]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
+      <instancedMesh ref={glows} args={[undefined, undefined, MAX_TOKENS]} frustumCulled={false}>
+        <planeGeometry args={[0.42, 0.42]} />
+        <meshBasicMaterial
+          map={glowTex}
+          transparent
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
+      </instancedMesh>
 
       <group position={[0, VAULT_Y, 0.55]}>
-        <RoundedBox args={[2.1, 0.32, 1.0]} radius={0.06} smoothness={3}>
-          <meshPhysicalMaterial color="#121214" roughness={0.5} metalness={0.3} clearcoat={0.6} />
-        </RoundedBox>
+        <mesh geometry={vaultGeometry}>
+          <meshStandardMaterial color="#141416" roughness={0.45} metalness={0.4} />
+        </mesh>
         <mesh position={[0, 0.161, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[1.3, 0.08]} />
           <meshBasicMaterial ref={slot} toneMapped={false} />
@@ -562,26 +660,44 @@ function World({ still }: { still: boolean }) {
   )
 }
 
-export default function HeroScene({ active, quality, still }: HeroSceneProps) {
+/**
+ * Compiles every material's shaders with KHR_parallel_shader_compile (where the browser has it)
+ * before the first frame, so the first render doesn't block the main thread compiling them.
+ */
+function Precompile({ onReady }: { onReady: () => void }) {
+  const { gl, scene, camera } = useThree()
+  useEffect(() => {
+    let cancelled = false
+    gl.compileAsync(scene, camera)
+      .catch(() => {})
+      .finally(() => !cancelled && onReady())
+    return () => {
+      cancelled = true
+    }
+  }, [gl, scene, camera, onReady])
+  return null
+}
+
+export default function HeroScene({ active, quality, still, onReady }: HeroSceneProps) {
   const high = quality === 'high'
+  const [compiled, setCompiled] = useState(false)
+  const compiledNow = useCallback(() => {
+    setCompiled(true)
+    onReady?.()
+  }, [onReady])
+  useEffect(() => {
+    if (still) onReady?.()
+  }, [still, onReady])
   return (
     <Canvas
-      frameloop={still ? 'demand' : active ? 'always' : 'never'}
+      frameloop={still ? 'demand' : active && compiled ? 'always' : 'never'}
       dpr={high ? [1, 1.75] : 1}
       gl={{ alpha: true, antialias: true, powerPreference: 'high-performance' }}
       camera={{ position: [0, 0.15, 7], fov: 34 }}
     >
       <World still={still} />
-      <Environment resolution={64} frames={1}>
-        <Lightformer form="rect" intensity={2.2} color="#ffd8cf" position={[0, 3, 4]} scale={[6, 1.2, 1]} />
-        <Lightformer form="rect" intensity={3} color="#ff8975" position={[-5, 0.5, -2]} scale={[2, 4, 1]} />
-        <Lightformer form="ring" intensity={1.2} color="#ffffff" position={[4, -1, 3]} scale={2} />
-      </Environment>
-      {high ? (
-        <EffectComposer multisampling={0}>
-          <Bloom mipmapBlur intensity={0.75} luminanceThreshold={1} luminanceSmoothing={0.1} radius={0.45} />
-        </EffectComposer>
-      ) : null}
+      {/* after the scene, so its materials are all mounted */}
+      {still ? null : <Precompile onReady={compiledNow} />}
     </Canvas>
   )
 }

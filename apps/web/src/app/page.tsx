@@ -148,7 +148,7 @@ export default function Home() {
 
         {/* ---- built on ------------------------------------------------------------------ */}
         <section aria-label="Built on" className="border-y border-white/8 bg-ink py-8">
-          <p className="mb-5 text-center text-xs tracking-[0.14em] text-gray-3 uppercase">Built on</p>
+          <p className="mb-5 text-center text-xs tracking-[0.14em] text-gray-1 uppercase">Built on</p>
           <div className="marquee relative overflow-hidden">
             <ul className="marquee-track flex w-max gap-14 pr-14">
               {(['a', 'b'] as const).flatMap((copy) =>
@@ -379,13 +379,16 @@ export default function Home() {
                 ],
                 ['Prove', 'Merkle roots anchored onchain, channels reconciled, every voucher exportable.'],
               ].map(([step, body], i) => (
-                <Reveal key={step} delay={i * 0.06}>
-                  <li className="h-full rounded-[22px] border border-white/10 bg-night p-6">
+                <li key={step}>
+                  <Reveal
+                    delay={i * 0.06}
+                    className="h-full rounded-[22px] border border-white/10 bg-night p-6"
+                  >
                     <span className="num text-sm text-wax">0{i + 1}</span>
                     <h3 className="mt-3 text-h5 font-medium">{step}</h3>
                     <p className="mt-2 text-[15px] leading-[1.5] text-gray-1">{body}</p>
-                  </li>
-                </Reveal>
+                  </Reveal>
+                </li>
               ))}
             </ol>
           </Container>
