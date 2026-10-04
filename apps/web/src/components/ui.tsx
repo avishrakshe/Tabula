@@ -129,8 +129,9 @@ export function AgentStatusBadge({ status }: { status: 'active' | 'paused' | 'ki
         Paused
       </Badge>
     )
+  // neutral pill: a coral tint reads too close to the red "Stopped" badge beside it
   return (
-    <Badge tone="live" icon={<LiveDot />}>
+    <Badge tone="neutral" icon={<LiveDot />}>
       Active
     </Badge>
   )

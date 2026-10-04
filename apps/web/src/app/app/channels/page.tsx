@@ -4,7 +4,7 @@ import { Landmark } from 'lucide-react'
 import { useState } from 'react'
 import {
   Addr,
-  Badge,
+  AgentStatusBadge,
   Button,
   Card,
   CardHeader,
@@ -174,8 +174,13 @@ export default function ChannelsPage() {
                     {c.agentId} → {c.vendorId}
                   </Td>
                   <Td className="max-w-[28ch] text-xs text-fg-2">
-                    {c.closeReason?.startsWith('killed') ? <Badge tone="sever">stopped</Badge> : null}{' '}
-                    {c.closeReason}
+                    {c.closeReason?.startsWith('killed: ') ? (
+                      <>
+                        <AgentStatusBadge status="killed" /> {c.closeReason.slice('killed: '.length)}
+                      </>
+                    ) : (
+                      c.closeReason
+                    )}
                   </Td>
                   <Td className="num text-right">{usd(c.deposit)}</Td>
                   <Td className="num text-right">{usd(c.settledAmount)}</Td>

@@ -81,10 +81,10 @@ export default function ReconciliationPage() {
                   <Td>
                     <ReconcileBadge status={r.status} />
                   </Td>
-                  <Td>
+                  <Td className="whitespace-nowrap">
                     {r.agentId} → {r.vendorId}
                   </Td>
-                  <Td>
+                  <Td className="whitespace-nowrap">
                     <Addr value={r.channel} />
                   </Td>
                   <Td className="num text-right">{usd(r.deposit)}</Td>
@@ -99,7 +99,7 @@ export default function ReconciliationPage() {
                         : 'recorded when the channel closed'}
                     </span>
                   </Td>
-                  <Td className="text-xs">
+                  <Td className="whitespace-nowrap text-xs">
                     <ExplorerLink href={r.explorerUrl}>{timeAgo(r.closedAt, now)}</ExplorerLink>
                   </Td>
                 </tr>

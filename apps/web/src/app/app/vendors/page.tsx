@@ -58,15 +58,18 @@ export default function VendorsPage() {
                   </div>
                 </dl>
                 <div className="mt-4">
+                  <p className="mb-1 text-xs text-fg-2">
+                    Cost per completed task, against the priciest vendor
+                  </p>
                   <div className="h-1.5 rounded-full bg-surface-2" aria-hidden>
                     <div
                       className="h-full rounded-full bg-series-1"
                       style={{ width: `${((s.costPerCompletedTask ?? 0) / maxCost) * 100}%` }}
                     />
                   </div>
-                  <p className="num mt-1 text-xs text-fg-2">
+                  <p className="num mt-2 text-xs text-fg-2">
                     {s.paidCalls} paid calls · {usd(s.spend)} spent · {usd(s.wasted)} wasted on{' '}
-                    {s.failedCalls} failed calls
+                    {s.failedCalls} failed {s.failedCalls === 1 ? 'call' : 'calls'}
                   </p>
                 </div>
                 {s.cheaperOption ? (
