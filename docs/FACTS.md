@@ -178,6 +178,25 @@ Confirmed within the hour, so the Squads-spending-limit fallback is not forced.
 - Unverified idea: because the sandbox clones mainnet, Reflect's mainnet program may be callable there.
   Spike before relying on it.
 
+## Deployment platforms (DEPLOY.md, checked 2026-10-04 against current docs)
+
+- **Vercel Hobby, functions:** with Fluid compute, the default and maximum duration is 300 s, with no extended
+  duration on Hobby
+  ([docs](https://vercel.com/docs/functions/configuring-functions/duration)).
+- **Vercel Hobby, cron:** once per day at most, with ±59 min precision. A more frequent expression fails the
+  deploy ([docs](https://vercel.com/docs/cron-jobs/usage-and-pricing)). Every-minute jobs therefore run from
+  Supabase pg_cron + pg_net.
+- **Supabase Free, pausing:** a project with low activity over 7 days is paused (restorable within a year).
+  Paid plans don't pause ([docs](https://supabase.com/docs/guides/platform/free-project-pausing)). The site's
+  replay fallback covers a paused project.
+- **Supabase Free, Realtime:** 200 concurrent connections, 100 messages/s, 100 channel joins/s
+  ([docs](https://supabase.com/docs/guides/realtime/limits)).
+- **pg_cron and pg_net:** pg_cron never prunes `cron.job_run_details`, so prune it ourselves. pg_net keeps
+  responses for 6 hours ([docs](https://supabase.com/docs/guides/database/extensions/pg_net)).
+- **`@solana/mpp` server:** sessions take a pluggable `SessionStore` (`dist/server/session/store.d.ts`). Its
+  only write is an atomic `updateChannel(id, mutator)`, which maps onto a Postgres row lock, so vendors can run
+  serverless with state in Postgres. Charge and Subscription replay protection take an `mppx` `Store`.
+
 ## Divergences from PROMPT.md
 
 - Next.js latest is 16.x, not 15. The App Router API is the same, and Tabula uses 16.
