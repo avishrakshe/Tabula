@@ -38,7 +38,7 @@ export default function PoliciesPage() {
           <EmptyState title="No policies yet">Run pnpm setup to install the demo policies.</EmptyState>
         </Card>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+        <div className="grid items-start gap-6 lg:grid-cols-[280px_1fr]">
           <Card>
             <CardHeader title="Scopes" />
             <ul className="p-2">
