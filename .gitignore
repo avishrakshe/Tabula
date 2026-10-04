@@ -22,8 +22,8 @@ coverage/
 *.tsbuildinfo
 next-env.d.ts
 
-# local data (ledger DB, setup state)
-data/
+# local data (ledger DB, setup state); anchored so src/lib/data/ stays tracked
+/data/
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal

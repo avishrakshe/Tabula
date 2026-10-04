@@ -14,6 +14,7 @@
       "!**/.next",
       "!**/coverage",
       "!**/*.d.ts",
+      "!apps/web/public/replay",
       "!PROMPT.md"
     ]
   },
