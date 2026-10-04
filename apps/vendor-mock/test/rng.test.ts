@@ -29,7 +29,7 @@ describe('seeded vendor behaviour', () => {
 
   it('prices are per call and the mirror shares inference-a’s price but not its payee', () => {
     expect(pricePerCall(demoVendor('inference-a'))).toBe(1000n)
-    expect(pricePerCall(demoVendor('inference-b'))).toBe(1500n)
+    expect(pricePerCall(demoVendor('inference-b'))).toBe(1250n)
     expect(demoVendor('mirror').payeeKey).not.toBe(demoVendor('inference-a').payeeKey)
     expect(new Set(DEMO_VENDORS.map((v) => v.port)).size).toBe(DEMO_VENDORS.length)
     expect(() => demoVendor('nope')).toThrow(/unknown demo vendor/)

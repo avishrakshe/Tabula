@@ -39,8 +39,8 @@ export const DEMO_VENDORS: readonly VendorConfig[] = [
     port: 4801,
     taskType: 'summarize',
     unitName: 'token',
-    unitsPerCall: 500,
-    unitPrice: 2n, // $0.001 per call
+    unitsPerCall: 250,
+    unitPrice: 4n, // $0.001 per call
     errorRate: 0.01,
     emptyRate: 0,
     timeoutRate: 0,
@@ -57,8 +57,8 @@ export const DEMO_VENDORS: readonly VendorConfig[] = [
     port: 4802,
     taskType: 'summarize',
     unitName: 'token',
-    unitsPerCall: 500,
-    unitPrice: 3n, // $0.0015 per call
+    unitsPerCall: 250,
+    unitPrice: 5n, // $0.00125 per call: 25% pricier per call and ~14% of paid calls wasted
     errorRate: 0.08,
     emptyRate: 0.05,
     timeoutRate: 0.01,
@@ -76,8 +76,8 @@ export const DEMO_VENDORS: readonly VendorConfig[] = [
     port: 4803,
     taskType: 'summarize',
     unitName: 'token',
-    unitsPerCall: 500,
-    unitPrice: 2n,
+    unitsPerCall: 250,
+    unitPrice: 4n,
     errorRate: 0,
     emptyRate: 0,
     timeoutRate: 0,
