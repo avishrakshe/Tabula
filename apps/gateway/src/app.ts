@@ -257,6 +257,36 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
       .limit(Math.min(Number(req.query.limit ?? 200), 2000)),
   )
 
+  // ---- policies --------------------------------------------------------------------------
+  app.get('/v1/policies', { preHandler: requireAdmin }, async () => {
+    const rows = await gw.ledger.db.select().from(schema.policies).orderBy(desc(schema.policies.id))
+    return rows.map((r) => ({ ...r, rules: JSON.parse(r.rulesJson) }))
+  })
+
+  app.put('/v1/policies', { preHandler: requireAdmin }, async (req) => {
+    const body = z
+      .object({
+        scope: z.enum(['global', 'agent', 'vendor']),
+        scopeId: z.string().min(1).nullable().optional(),
+        rules: z.record(z.string(), z.unknown()),
+        updatedBy: z.string().max(80).optional(),
+      })
+      .parse(req.body)
+    if (body.scope !== 'global' && !body.scopeId)
+      throw new GatewayError(400, 'BAD_REQUEST', 'scopeId is required')
+    try {
+      const version = await gw.policy.setPolicy(
+        body.scope,
+        body.scope === 'global' ? null : (body.scopeId ?? null),
+        body.rules as never,
+        body.updatedBy ?? 'dashboard',
+      )
+      return { ok: true, version }
+    } catch (err) {
+      throw new GatewayError(400, 'INVALID_POLICY', (err as Error).message)
+    }
+  })
+
   // ---- reports ---------------------------------------------------------------------------
   app.get('/v1/overview', { preHandler: requireAdmin }, async () => ({
     ...(await overview(gw.ledger.db)),
