@@ -71,14 +71,24 @@ const DEFAULTS: GatewaySettings = {
 }
 const STORAGE_KEY = 'tabula.gateway'
 
-function loadSettings(): GatewaySettings {
+/** The viewer's saved gateway, if they ever connected one. */
+function savedSettings(): GatewaySettings | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<GatewaySettings>) }
   } catch {
     // storage unavailable: defaults
   }
-  return DEFAULTS
+  return null
+}
+
+/**
+ * Probe for a live gateway only where one can exist: on localhost, when the build names a gateway, or once the
+ * viewer has connected one. A hosted visitor goes straight to the recorded run, with no failed request.
+ */
+function shouldTryLive(saved: GatewaySettings | null): boolean {
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+  return local || !!process.env.NEXT_PUBLIC_TABULA_GATEWAY_URL || saved !== null
 }
 
 const readonlyError = () =>
@@ -92,7 +102,8 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
   const [lastEventAt, setLastEventAt] = useState<number | null>(null)
   const [tick, setTick] = useState(() => Date.now())
   const [attempt, setAttempt] = useState(0)
-  const [forceReplay, setForceReplay] = useState(false)
+  // null until the first effect decides between live and the recorded run
+  const [forceReplay, setForceReplay] = useState<boolean | null>(null)
 
   // replay state
   const [file, setFile] = useState<ReplayFile | null>(null)
@@ -105,9 +116,10 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
   // ?replay opens the recorded run; ?replay&t=59 opens it paused at 0:59 (deep links, screenshots)
   const startAt = useRef<number | null>(null)
   useEffect(() => {
-    setSettingsState(loadSettings())
+    const saved = savedSettings()
+    if (saved) setSettingsState(saved)
     const q = new URLSearchParams(window.location.search)
-    if (q.has('replay')) setForceReplay(true)
+    setForceReplay(q.has('replay') || !shouldTryLive(saved))
     const at = Number(q.get('t'))
     if (q.has('t') && Number.isFinite(at)) startAt.current = at * 1000
   }, [])
@@ -159,7 +171,7 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: bumping `attempt` reconnects on demand
   useEffect(() => {
-    if (forceReplay) return
+    if (forceReplay !== false) return
     let cancelled = false
     let es: EventSource | null = null
     let poll: ReturnType<typeof setInterval> | null = null
@@ -211,7 +223,7 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
 
   // ---- replay mode ----------------------------------------------------------------------
   useEffect(() => {
-    if (!forceReplay) return
+    if (forceReplay !== true) return
     let cancelled = false
     setMode('connecting')
     loadReplay()

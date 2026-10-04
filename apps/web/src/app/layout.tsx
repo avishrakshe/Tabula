@@ -8,10 +8,23 @@ const interTight = Inter_Tight({
   display: 'swap',
 })
 
+const title = 'Tabula — Every agent payment, accounted for'
+const description =
+  'Spend control and treasury for AI agents that pay through Solana payment channels: policy-gated vouchers, kill switches, onchain receipts and reconciliation.'
+
+// absolute URLs for social cards: the configured domain, else Vercel's production URL, else local
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'http://localhost:3000')
+
 export const metadata: Metadata = {
-  title: 'Tabula — Every agent payment, accounted for',
-  description:
-    'Spend control and treasury for AI agents that pay through Solana payment channels: policy-gated vouchers, kill switches, onchain receipts and reconciliation.',
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
+  openGraph: { title, description, siteName: 'Tabula', type: 'website' },
+  twitter: { card: 'summary_large_image', title, description },
 }
 
 export const viewport: Viewport = {
