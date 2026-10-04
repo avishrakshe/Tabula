@@ -13,6 +13,7 @@
   "dependencies": {
     "@noble/hashes": "2.4.0",
     "@react-three/fiber": "9.8.1",
+    "@tabula/agents": "workspace:*",
     "@tabula/gateway": "workspace:*",
     "@tabula/ledger": "workspace:*",
     "@tabula/policy": "workspace:*",

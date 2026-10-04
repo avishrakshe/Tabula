@@ -15,6 +15,7 @@
       "!**/coverage",
       "!**/*.d.ts",
       "!apps/web/public/replay",
+      "!packages/ledger/drizzle/meta",
       "!PROMPT.md"
     ]
   },

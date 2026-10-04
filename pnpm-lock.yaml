@@ -96,6 +96,9 @@ importers:
       '@react-three/fiber':
         specifier: 9.8.1
         version: 9.8.1(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.186.1)
+      '@tabula/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@tabula/gateway':
         specifier: workspace:*
         version: link:../gateway

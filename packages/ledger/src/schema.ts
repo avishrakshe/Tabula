@@ -209,6 +209,31 @@ export const vendorSessions = pgTable(
   (t) => [primaryKey({ columns: [t.vendorId, t.channelId] })],
 )
 
+/**
+ * Live demo runs on the hosted site: one at a time, advanced in short ticks by whoever is watching (or
+ * cron). A tick claims `leaseUntil` instead of holding a transaction, because its work makes its own
+ * database calls.
+ */
+export const demoRuns = pgTable('demo_runs', {
+  id: serial('id').primaryKey(),
+  status: text('status', { enum: ['running', 'done', 'failed'] }).notNull(),
+  startedAt: millis('started_at').notNull(),
+  updatedAt: millis('updated_at').notNull(),
+  finishedAt: millis('finished_at'),
+  leaseUntil: millis('lease_until'),
+  stateJson: text('state_json').notNull(),
+  /** sha256 of the requester's IP (never the IP itself). */
+  requester: text('requester'),
+  error: text('error'),
+})
+
+/** Fixed-window counters (live-demo rate limits). */
+export const rateLimits = pgTable('rate_limits', {
+  key: text('key').primaryKey(),
+  windowStart: millis('window_start').notNull(),
+  count: bigint('count', { mode: 'number' }).notNull(),
+})
+
 /** Non-secret deployment state (e.g. the treasury setup: vault, mint, allowances), as JSON values. */
 export const settings = pgTable('settings', {
   key: text('key').primaryKey(),

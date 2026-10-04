@@ -20,7 +20,8 @@ let runtime: Promise<Runtime> | null = null
 export function gateway(): Promise<Runtime> {
   runtime ??= (async () => {
     const config = { ...configFromEnv(), serverless: true }
-    if (!/^postgres(ql)?:\/\//.test(config.dbPath))
+    // on Vercel the ledger must be Postgres; off Vercel (a local rehearsal with `next start`) PGlite is fine
+    if (process.env.VERCEL && !/^postgres(ql)?:\/\//.test(config.dbPath))
       throw new Error('the hosted gateway needs DATABASE_URL (Supabase, transaction pooler)')
     const gw = await createGateway(config)
     const app = await buildApp(gw)
