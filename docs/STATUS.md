@@ -8,7 +8,7 @@ _Last updated 2026-10-04._
 | M2 Gateway, policy, verification | ✅ done (site skeleton still open) | `m2-gateway` |
 | M3 Kill and float ‖ 3D hero | ✅ kill/float done (3D hero not started) | `m3-kill-float` |
 | M4 Ledger, receipts, reconciliation, scorecards | ✅ done (plus `pnpm demo`) | `m4-ledger` |
-| M5 Dashboard | ✅ checked in a browser, live and replay; dashboard actions not yet clicked through (see below) | |
+| M5 Dashboard | ✅ checked in a browser, live and replay, including every action | |
 
 ## What works (run, not assumed)
 
@@ -146,9 +146,12 @@ _Last updated 2026-10-04._
   - live mode against `pnpm demo --hold`: SSE feed, chart, kill timeline, Policies, and dark mode;
   - fixes from that pass: the data layer was never committed (an unanchored `data/` gitignore rule), the
     Active and Stopped pills looked alike, the kill message repeated itself, plus small copy and layout fixes.
-- **Not yet clicked through:** Stop/Resume, Confirm stop, Save policy and Sweep idle against a live gateway.
-  The Chrome window was minimized (`visibilityState: hidden` throttles timers and delays clicks), and its
-  tab group kept disappearing.
+- **Actions, clicked through against a live gateway:** Resume, Stop → Confirm stop, Save policy (invalid
+  JSON refused with a red error; a valid edit saved as the next version of the selected scope), and Sweep
+  idle. Saving a policy had been broken: `@fastify/cors` allows only GET/HEAD/POST by default, so the
+  browser blocked the PUT. A unit test now checks the preflight.
+- **Browser automation note:** an occluded Chrome window reports `visibilityState: hidden`, and the first
+  inputs of a batch can be lost. Do one action at a time and read the state back.
 - **Memory:** on this machine (~1 GB free with Chrome open), use `next build` + `next start`, not
   `next dev`, and run one heavy process at a time.
 
@@ -166,7 +169,6 @@ _Last updated 2026-10-04._
 
 ## Next
 
-1. Click through the dashboard actions against `pnpm demo --hold` (needs a visible Chrome window).
-2. **Site:** the marketing page and the 3D hero (`/`, `/hero-embed`), styled after studying the Paymark
+1. **Site:** the marketing page and the 3D hero (`/`, `/hero-embed`), styled after studying the Paymark
    reference in the browser.
-3. **M6/M7:** freeze, `docs/PITCH.md`, README, Vercel deploy, demo video.
+2. **M6/M7:** freeze, `docs/PITCH.md`, README, Vercel deploy, demo video.
