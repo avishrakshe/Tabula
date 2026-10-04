@@ -1,4 +1,4 @@
-import { type LedgerDb, schema } from '@tabula/ledger'
+import { type LedgerDb, schema, withLock } from '@tabula/ledger'
 import { and, desc, eq, gte } from '@tabula/ledger/sql'
 import {
   type AgentStatus,
@@ -169,25 +169,39 @@ export class PolicyService {
     updatedBy: string,
   ): Promise<number> {
     compilePolicy(doc) // validate before touching the DB
-    const current = this.policyDoc(scope, scopeId ?? undefined)
-    const version = (current?.version ?? 0) + 1
     const now = Date.now()
     const scopeFilter = scopeId
       ? and(eq(schema.policies.scope, scope), eq(schema.policies.scopeId, scopeId))
       : eq(schema.policies.scope, scope)
-    await this.db.update(schema.policies).set({ active: false }).where(scopeFilter)
-    const [row] = await this.db
-      .insert(schema.policies)
-      .values({
-        scope,
-        scopeId,
-        rulesJson: JSON.stringify(doc),
-        version,
-        active: true,
-        updatedBy,
-        updatedAt: now,
-      })
-      .returning()
+    // number the version from the ledger, under a lock: another instance may have saved one since
+    const { row, version, current } = await withLock(
+      this.db,
+      `policy:${scope}:${scopeId ?? ''}`,
+      async (tx) => {
+        const [latest] = await tx
+          .select()
+          .from(schema.policies)
+          .where(scopeFilter)
+          .orderBy(desc(schema.policies.version))
+          .limit(1)
+        const version = (latest?.version ?? 0) + 1
+        await tx.update(schema.policies).set({ active: false }).where(scopeFilter)
+        const [row] = await tx
+          .insert(schema.policies)
+          .values({
+            scope,
+            scopeId,
+            rulesJson: JSON.stringify(doc),
+            version,
+            active: true,
+            updatedBy,
+            updatedAt: now,
+          })
+          .returning()
+        const current = latest?.active ? { doc: JSON.parse(latest.rulesJson) as PolicyDoc } : null
+        return { row, version, current }
+      },
+    )
     if (row) this.#install(row)
     await this.bus.emit({
       type: 'policy_changed',

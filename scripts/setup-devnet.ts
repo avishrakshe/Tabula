@@ -61,6 +61,10 @@ const DEVNET_SOL_TARGETS: readonly (readonly [string, bigint])[] = [
   ['vendor-inference-a-operator', (SOL * 3n) / 10n],
   ['vendor-inference-b-operator', (SOL * 3n) / 10n],
   ['vendor-mirror-operator', SOL / 10n],
+  // the payee signs and pays for the vendor's own settle_and_seal + distribute
+  ['vendor-inference-a-payee', SOL / 20n],
+  ['vendor-inference-b-payee', SOL / 20n],
+  ['vendor-mirror-payee', SOL / 50n],
 ]
 const OPERATOR_MIN = (SOL * 6n) / 5n
 

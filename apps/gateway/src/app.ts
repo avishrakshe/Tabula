@@ -142,11 +142,10 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
     const a = req.agent!
     return {
       id: a.id,
-      status: gw.policy.agentStatus(a.id),
-      sessions: gw.sessions
-        .sessions()
-        .filter((s) => s.agentId === a.id)
-        .map((s) => ({ id: s.id, vendorId: s.vendorId, status: s.status })),
+      status: a.status, // read from the ledger with the API key, so fresh on any instance
+      sessions: (await gw.store.channels())
+        .filter((c) => c.agentId === a.id)
+        .map((c) => ({ id: c.id, vendorId: c.vendorId, status: c.status })),
     }
   })
 
@@ -202,8 +201,7 @@ export async function buildApp(gw: Gateway): Promise<FastifyInstance> {
       agents.map(async ({ apiKeyHash: _hidden, ...a }) => {
         const allowance = await gw.treasury.allowance(a.id).catch(() => null)
         return {
-          ...a,
-          status: gw.policy.agentStatus(a.id),
+          ...a, // status straight from the ledger (another instance may have changed it)
           allowance: allowance
             ? {
                 address: allowance.address,

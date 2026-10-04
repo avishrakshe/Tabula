@@ -3,7 +3,8 @@ import {
   appendTransactionMessageInstructions,
   type Base64EncodedWireTransaction,
   type Commitment,
-  createSolanaRpc,
+  createDefaultRpcTransport,
+  createSolanaRpcFromTransport,
   createTransactionMessage,
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
@@ -20,8 +21,29 @@ import {
 
 export type SolanaRpc = Rpc<SolanaRpcApi>
 
-export function createRpc(url: string): SolanaRpc {
-  return createSolanaRpc(url)
+const isRateLimited = (err: unknown): boolean => {
+  const status = (err as { context?: { statusCode?: number }; statusCode?: number })?.context?.statusCode
+  return status === 429 || /\b429\b|Too Many Requests/i.test(String((err as Error)?.message ?? ''))
+}
+
+/**
+ * An RPC client whose transport retries HTTP 429 (rate limited) with exponential backoff and jitter.
+ * Public devnet endpoints throttle hard, and serverless functions share egress IPs; a burst that hits
+ * the limit should slow down, not fail a payment.
+ */
+export function createRpc(url: string, attempts = 7): SolanaRpc {
+  const transport = createDefaultRpcTransport({ url })
+  const retrying = (async (config: Parameters<typeof transport>[0]) => {
+    for (let i = 0; ; i++) {
+      try {
+        return await transport(config)
+      } catch (err) {
+        if (i >= attempts - 1 || !isRateLimited(err) || config.signal?.aborted) throw err
+        await sleep(Math.min(6_000, 250 * 2 ** i) + Math.random() * 250)
+      }
+    }
+  }) as typeof transport
+  return createSolanaRpcFromTransport(retrying) as unknown as SolanaRpc
 }
 
 export interface SendOptions {

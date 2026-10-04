@@ -96,12 +96,27 @@ importers:
       '@react-three/fiber':
         specifier: 9.8.1
         version: 9.8.1(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.186.1)
+      '@tabula/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       '@tabula/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@tabula/policy':
+        specifier: workspace:*
+        version: link:../../packages/policy
+      '@tabula/solana':
+        specifier: workspace:*
+        version: link:../../packages/solana
+      '@tabula/vendor-mock':
+        specifier: workspace:*
+        version: link:../vendor-mock
       detect-gpu:
         specifier: 5.0.70
         version: 5.0.70
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
       lucide-react:
         specifier: 1.51.0
         version: 1.51.0(@types/react@19.3.0)(react@19.2.8)

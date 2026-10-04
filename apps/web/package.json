@@ -13,8 +13,13 @@
   "dependencies": {
     "@noble/hashes": "2.4.0",
     "@react-three/fiber": "9.8.1",
+    "@tabula/gateway": "workspace:*",
     "@tabula/ledger": "workspace:*",
+    "@tabula/policy": "workspace:*",
+    "@tabula/solana": "workspace:*",
+    "@tabula/vendor-mock": "workspace:*",
     "detect-gpu": "5.0.70",
+    "fastify": "5.12.5",
     "lucide-react": "1.51.0",
     "motion": "14.0.0",
     "next": "16.3.8",

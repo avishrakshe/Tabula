@@ -1,6 +1,6 @@
-import { createSolanaRpc, type KeyPairSigner } from '@solana/kit'
+import type { KeyPairSigner } from '@solana/kit'
 import { Mppx, type SessionStore, session } from '@solana/mpp/server'
-import type { ClusterConfig } from '@tabula/solana'
+import { type ClusterConfig, createRpc } from '@tabula/solana'
 import { Hono } from 'hono'
 import { pricePerCall, type VendorConfig } from './config.js'
 import { mulberry32 } from './rng.js'
@@ -49,7 +49,7 @@ export function createVendorApp(config: VendorConfig, deps: VendorDeps) {
     idleTimeoutSeconds: config.idleTimeoutSeconds,
     network,
     recipient: deps.payee.address,
-    rpc: createSolanaRpc(deps.cluster.rpcUrl),
+    rpc: createRpc(deps.cluster.rpcUrl),
     signer: deps.payee,
     ...(deps.store ? { store: deps.store } : {}),
     suggestedDeposit: config.suggestedDeposit,
