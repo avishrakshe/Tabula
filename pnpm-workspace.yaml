@@ -7,4 +7,9 @@ allowBuilds:
   bigint-buffer: false
   bufferutil: false
   esbuild: true
+  # Next.js image optimizer; Vercel provides its own, local dev falls back
+  sharp: false
+  unrs-resolver: false
   utf-8-validate: false
+minimumReleaseAgeExclude:
+  - lucide-react@1.51.0
