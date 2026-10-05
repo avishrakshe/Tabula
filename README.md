@@ -14,8 +14,9 @@ books can't see it. A prompt-injected agent can empty its escrow before anyone l
 - It sweeps idle escrow back to your treasury.
 - It anchors a receipt for every voucher onchain and reconciles each channel against what settled.
 
-> **Live:** <https://tabula-agents.vercel.app> (the landing page) and
-> <https://tabula-agents.vercel.app/app> (the dashboard, replaying a recorded run).
+> **Live:** <https://tabula-agents.vercel.app> (the landing page),
+> <https://tabula-agents.vercel.app/app> (the dashboard, replaying a recorded run) and
+> <https://tabula-agents.vercel.app/film> (what Tabula does, as an 81-second motion graphic).
 >
 > Built for Colosseum's Crypto World's Fair (Solana track). Everything below runs against the hosted
 > **Solana Payment Sandbox** (a mainnet clone with test balances). No real funds move.
@@ -88,8 +89,8 @@ flowchart LR
 - `apps/gateway`: the Fastify gateway (sessions, custody, kill path, float manager, anchoring, reports, SSE).
 - `apps/vendor-mock`: the vendors, running the unmodified `@solana/mpp` session server.
 - `apps/agents`: the demo agents.
-- `apps/web`: the landing page with the 3D hero (`/`), the dashboard (`/app`), and the embeddable hero
-  (`/hero-embed`).
+- `apps/web`: the landing page with the 3D hero and the waitlist (`/`), the dashboard (`/app`), the film
+  (`/film`), and the embeddable hero (`/hero-embed`).
 
 ## Quickstart
 
@@ -155,6 +156,16 @@ The site and the dashboard's replay mode are static and need no gateway.
 
 A hosted dashboard replays the recorded run. To point it at a live gateway, set
 `NEXT_PUBLIC_TABULA_GATEWAY_URL`, or use **Connect live** in the dashboard header.
+
+**Waitlist.** The landing page's early-access form writes to the ledger's `waitlist` table (row level security
+on, like every ledger table). It needs `DATABASE_URL` on the deployment; without one the form says sign-ups
+aren't open yet. After pulling new migrations, apply them with `pnpm tsx --env-file=.env scripts/migrate.ts`
+(uses `DIRECT_URL`). Sign-ups are rate-limited per network, and the answer never reveals whether an email
+was already on the list.
+
+**The film.** `/film` plays the motion graphic live in the browser (it's drawn in code from the recorded
+run's numbers). To render it to MP4 (1920×1080, 30 fps), start the site and run `pnpm film:render`; it needs
+ffmpeg and writes `apps/web/public/film/tabula-film.mp4`, which `/film` then offers as a download.
 
 ## What is real and what is mocked
 

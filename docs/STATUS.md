@@ -1,6 +1,6 @@
 # STATUS
 
-_Last updated 2026-10-04._
+_Last updated 2026-10-05._
 
 | Milestone | State | Tag |
 |---|---|---|
@@ -184,8 +184,45 @@ _Last updated 2026-10-04._
     Accessibility 100, Best Practices 100, LCP 0.8–0.9 s, CLS 0.
 - **Open:**
   - The Scale plan has no price yet ("pricing on request"); the user decides the numbers.
-  - The footer has no demo-video or Colosseum link until they exist.
-  - "Watch the demo" opens the recorded run (`/app?replay`), not a video.
+  - The footer has no Colosseum link until it exists.
+
+### Brand, waitlist, film and fixes (2026-10-05)
+
+- **Logo:** the founders' mark (a T whose stem is three ledger rows, with a coral dot) is an exact SVG
+  (`components/site/Logo.tsx`, measured from the 1024px icon). It replaces the default Next.js favicon
+  (`icon.svg`, `apple-icon.png`, a PNG-in-ICO `favicon.ico`) and appears in the nav, footer, dashboard
+  sidebar, mobile dashboard header and social card. `public/brand/` has the mark and a 512px icon.
+- **Waitlist** (`#waitlist`, `POST /api/waitlist`): a voucher-styled form (email, optional interest, fleet
+  size, company, plus a honeypot). Rows go to the ledger's new `waitlist` table (migration 0005, unique
+  lowercased email, salted IP hash, RLS on). Rate-limited to 10 per network per hour. New and duplicate
+  emails get the same answer. Without a database it answers 503 and the form points to GitHub.
+  - Checked on `next start` with a scratch PGlite ledger: sign-up, duplicate, bad email, bad JSON,
+    honeypot, unknown choices dropped, and the 11th sign-up refused with 429. The rows were read back.
+  - **Deploy:** apply 0004 and 0005 to Supabase with `pnpm tsx --env-file=.env scripts/migrate.ts`
+    (`DIRECT_URL`). The deployed site needs `DATABASE_URL` for sign-ups to work.
+- **Row level security** (migration 0004): on for every ledger table, with no policies, so Supabase's anon
+  key can't read or write the ledger. A ledger test checks every public table.
+- **The film** (`#demo` on the landing page, and `/film`): an 81-second motion graphic in 8 chapters, drawn
+  in code as a pure function of time (`components/film/`), with kinetic captions.
+  - It plays live in a custom player: autoplay in view (never with reduced motion), chapter scrubber,
+    captions toggle, full screen, keyboard shortcuts and a transcript. On phones the captions move under
+    the picture.
+  - The run's figures (voucher #49, the $0.565 refund, 6/6 batches, 4/4 `MATCHED`, the scorecards) come
+    from `public/replay/demo.json` via `lib/film-facts.ts`. "The threat" (a run with no Tabula) is drawn.
+  - `pnpm film:render` steps it frame by frame (`/film/render`) into `public/film/tabula-film.mp4`, and
+    `/film` offers the MP4 as a download.
+- **Fixes:**
+  - The replay opened on 33 s of empty dashboard (the devnet run's setup). It now starts just before the
+    first payment request, and Restart returns there.
+  - The landing page had no navigation on phones; it now has a menu. The dashboard's mobile header had no
+    way home, and its tabs didn't highlight on detail pages.
+  - PGlite crashed inside `next start` ("instantiateWasm is not a function"), so local live rehearsals
+    showed "the live ledger is offline". It is now a server external package.
+  - "3 of 3 agents paying through 0 open channels" now reads "3 of 3 agents active, no channels open yet".
+  - The Scale plan's "Talk to us" (GitHub issues) is "Join the waitlist"; the hero's "Watch the demo" plays
+    the film.
+  - Rehearsing with `.env.devnet` under `next start` needs an absolute `TABULA_TREASURY_FILE` (the server
+    runs from `apps/web`).
 
 ## What is mocked or simplified
 
