@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // the dashboard recomputes ledger Merkle roots in the browser with the same code the gateway uses
   transpilePackages: ['@tabula/ledger'],
+  // PGlite (the local ledger, `next start` rehearsals) loads its WebAssembly itself; bundled, it fails with
+  // "instantiateWasm is not a function". Deployed, the ledger is Postgres and PGlite is never loaded.
+  serverExternalPackages: ['@electric-sql/pglite'],
   async headers() {
     // dev needs eval for React Refresh, so the CSP applies to production builds only
     if (process.env.NODE_ENV !== 'production') return []

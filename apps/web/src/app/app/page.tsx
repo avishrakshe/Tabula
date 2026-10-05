@@ -28,7 +28,7 @@ export default function OverviewPage() {
         title="Overview"
         description={
           o
-            ? `${o.activeAgents} of ${o.totalAgents} agents paying through ${o.openChannels} open channel${o.openChannels === 1 ? '' : 's'}. Treasury vault ${o.vaultBalance ? usdCompact(o.vaultBalance) : '—'}.`
+            ? `${o.activeAgents} of ${o.totalAgents} agents active, ${o.openChannels === 0 ? 'no channels open yet' : `paying through ${o.openChannels} open channel${o.openChannels === 1 ? '' : 's'}`}. Treasury vault ${o.vaultBalance ? usdCompact(o.vaultBalance) : '—'}.`
             : mode === 'connecting'
               ? 'Connecting…'
               : 'Waiting for data.'

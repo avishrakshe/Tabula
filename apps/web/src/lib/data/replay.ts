@@ -102,6 +102,19 @@ export function stateAt(file: ReplayFile, t: number): DashboardData {
   }
 }
 
+/** Events that happen while a run is still setting up (escrow sizing, funding): nothing to look at yet. */
+const SETUP_EVENTS = new Set(['float_sized', 'top_up', 'faucet'])
+
+/**
+ * Where playback starts: just before the first thing worth watching. A devnet recording spends its first
+ * half-minute sizing escrow and pulling funds, and the dashboard would sit empty all that time. The setup
+ * events still show in the timeline, since everything before the start counts as seen.
+ */
+export function replayStart(file: ReplayFile): number {
+  const first = file.events.find((e) => !SETUP_EVENTS.has(e.type))
+  return first ? Math.max(0, (first.t ?? 0) - 1_500) : 0
+}
+
 /** Wall-clock time in the recording at offset t (for "x minutes ago" labels during replay). */
 export function recordedNow(file: ReplayFile, t: number): number {
   return Date.parse(file.meta.recordedAt) + t

@@ -26,7 +26,7 @@ import {
   tickDemoRun,
 } from './live'
 import { fromStream, mergeTimeline, mergeVouchers, type StreamEvent, voucherFromEvent } from './normalize'
-import { loadReplay, type ReplayFile, recordedNow, stateAt } from './replay'
+import { loadReplay, type ReplayFile, recordedNow, replayStart, stateAt } from './replay'
 
 export type Mode = 'connecting' | 'live' | 'replay' | 'error'
 
@@ -39,6 +39,8 @@ export type Source = 'replay' | 'gateway' | 'hosted'
 export interface ReplayControls {
   t: number
   duration: number
+  /** Where playback opens and restarts: the first activity, past the run's setup. */
+  start: number
   playing: boolean
   speed: number
   recordedAt: string
@@ -416,7 +418,7 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
         setFile(f)
         const at = startAt.current
         startAt.current = null
-        setT(at === null ? 0 : Math.max(0, Math.min(f.meta.durationMs, at)))
+        setT(at === null ? replayStart(f) : Math.max(0, Math.min(f.meta.durationMs, at)))
         setPlaying(at === null)
         setMode('replay')
       })
@@ -457,8 +459,9 @@ export function TabulaProvider({ children }: { children: ReactNode }) {
       speed,
       recordedAt: file.meta.recordedAt,
       cluster: file.meta.cluster,
+      start: replayStart(file),
       play: () => {
-        if (t >= file.meta.durationMs) setT(0)
+        if (t >= file.meta.durationMs) setT(replayStart(file))
         setPlaying(true)
       },
       pause: () => setPlaying(false),
