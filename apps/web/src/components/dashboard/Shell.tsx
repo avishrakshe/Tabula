@@ -21,6 +21,7 @@ import { usePathname } from 'next/navigation'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useTabula } from '@/lib/data/provider'
 import { duration } from '@/lib/format'
+import { LogoMark, Wordmark } from '../site/Logo'
 import { Button, cx, LiveDot } from '../ui'
 
 const NAV = [
@@ -32,6 +33,10 @@ const NAV = [
   { href: '/app/vendors', label: 'Vendors', icon: Store },
   { href: '/app/policies', label: 'Policies', icon: SlidersHorizontal },
 ]
+
+/** Overview matches only itself; every other section also covers its detail pages (/app/agents/<id>). */
+const isActive = (pathname: string, href: string) =>
+  href === '/app' ? pathname === '/app' : pathname === href || pathname.startsWith(`${href}/`)
 
 function ThemeToggle() {
   const [theme, setTheme] = useState<'light' | 'dark' | null>(null)
@@ -224,7 +229,10 @@ function StatusBar() {
             type="button"
             className="rounded-full p-1.5 hover:bg-surface-2"
             aria-label="Restart replay"
-            onClick={() => replay.seek(0)}
+            onClick={() => {
+              replay.seek(replay.start)
+              replay.play()
+            }}
           >
             <RotateCcw className="size-3.5" />
           </button>
@@ -261,13 +269,13 @@ export function Shell({ children }: { children: ReactNode }) {
       </a>
       <div className="mx-auto flex max-w-[1440px]">
         <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line px-4 py-6 md:flex">
-          <Link href="/" className="px-2 text-h5 font-semibold tracking-tight">
-            Tabula
+          <Link href="/" className="px-2 text-h5" aria-label="Tabula home">
+            <Wordmark markClassName="h-5 w-auto" />
           </Link>
-          <p className="px-2 text-xs text-fg-2">Every agent payment, accounted for.</p>
+          <p className="mt-1 px-2 text-xs text-fg-2">Every agent payment, accounted for.</p>
           <nav className="mt-8 flex flex-col gap-0.5" aria-label="Dashboard">
             {NAV.map(({ href, label, icon: Icon }) => {
-              const active = href === '/app' ? pathname === '/app' : pathname.startsWith(href)
+              const active = isActive(pathname, href)
               return (
                 <Link
                   key={href}
@@ -298,20 +306,31 @@ export function Shell({ children }: { children: ReactNode }) {
         </aside>
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-bg/90 px-4 py-3 backdrop-blur md:px-8">
-            <nav className="flex gap-1 overflow-x-auto md:hidden" aria-label="Dashboard (mobile)">
-              {NAV.map(({ href, label }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className={cx(
-                    'whitespace-nowrap rounded-full px-3 py-1 text-xs',
-                    pathname === href ? 'bg-surface font-medium' : 'text-fg-2',
-                  )}
-                >
-                  {label}
-                </Link>
-              ))}
-            </nav>
+            <div className="flex w-full min-w-0 items-center gap-3 md:hidden">
+              <Link href="/" aria-label="Tabula home" className="shrink-0 rounded-lg p-1">
+                <LogoMark className="h-5 w-auto" />
+              </Link>
+              <nav className="flex min-w-0 gap-1 overflow-x-auto" aria-label="Dashboard (mobile)">
+                {NAV.map(({ href, label }) => {
+                  const active = isActive(pathname, href)
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      aria-current={active ? 'page' : undefined}
+                      className={cx(
+                        'whitespace-nowrap rounded-full px-3 py-1 text-xs',
+                        active
+                          ? 'bg-surface font-medium shadow-[inset_0_0_0_1px_var(--tb-line)]'
+                          : 'text-fg-2',
+                      )}
+                    >
+                      {label}
+                    </Link>
+                  )
+                })}
+              </nav>
+            </div>
             <StatusBar />
             <ThemeToggle />
           </header>

@@ -14,8 +14,9 @@
 import { CODING_PROMPTS, RESEARCH_PROMPTS, TICKET_PROMPTS } from '@tabula/agents'
 import { type Gateway, GatewayError } from '@tabula/gateway'
 import { first, type LedgerDb, schema, withLock } from '@tabula/ledger'
-import { and, desc, eq, isNull, lt, or, sql } from '@tabula/ledger/sql'
+import { and, desc, eq, isNull, lt, or } from '@tabula/ledger/sql'
 import { createRpc, loadOrCreateKeypair, ownerTokenBalance, solBalance } from '@tabula/solana'
+import { allow } from './rate-limit'
 import { scrub } from './request'
 
 interface AgentState {
@@ -136,22 +137,6 @@ const view = (row: typeof schema.demoRuns.$inferSelect, now = Date.now()): RunVi
     })),
     error: row.error && scrub(row.error),
   }
-}
-
-/** Fixed-window counter: true while `key` has been hit at most `limit` times in the current window. */
-async function allow(db: LedgerDb, key: string, limit: number, windowMs: number, now = Date.now()) {
-  const [row] = await db
-    .insert(schema.rateLimits)
-    .values({ key, windowStart: now, count: 1 })
-    .onConflictDoUpdate({
-      target: schema.rateLimits.key,
-      set: {
-        count: sql`case when ${schema.rateLimits.windowStart} < ${now - windowMs} then 1 else ${schema.rateLimits.count} + 1 end`,
-        windowStart: sql`case when ${schema.rateLimits.windowStart} < ${now - windowMs} then ${now} else ${schema.rateLimits.windowStart} end`,
-      },
-    })
-    .returning({ count: schema.rateLimits.count })
-  return (row?.count ?? 0) <= limit
 }
 
 const FUNDS_TTL_MS = 60_000

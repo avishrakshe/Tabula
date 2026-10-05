@@ -21,8 +21,14 @@ export interface RunFacts {
     afterInjectionSec: number
     settled: number
     refunded: number
+    /** the velocity rule that tripped: spend in the trailing window, the window, and the limit (micros) */
+    spentInWindow: number
+    windowSec: number
+    limit: number
   }
   payee: { agentId: string; vendorId: string; offered: string; expected: string }
+  /** the last full ledger batch anchored onchain */
+  anchor: { batchId: number; vouchers: number; root: string; tx: string } | null
   idleSweep: { refunded: number; agentId: string; vendorId: string }
   channels: { total: number; matched: number }
   batches: { total: number; matched: number }
@@ -61,6 +67,11 @@ export function runFacts(): RunFacts {
   const idleSession = (idleClose.data as { sessionId: string; refunded: string }).sessionId
   const idleRow = last.reconcile.find((r) => r.sessionId === idleSession)!
   const batches = Object.values(file.final.batchDetails)
+  // "Stopped paying rogue-01: spent $0.06125 in 60s (limit $0.06)"
+  const rule = /spent \$([\d.]+) in (\d+)s \(limit \$([\d.]+)\)/.exec(blockedRow.reason ?? '')
+  const full = [...last.batches]
+    .sort((a, b) => b.id - a.id)
+    .find((b) => b.voucherCount === 40 && b.txSignature)
 
   cached = {
     recordedAt: file.meta.recordedAt,
@@ -75,7 +86,13 @@ export function runFacts(): RunFacts {
       afterInjectionSec: Math.round(((killEvent.t ?? 0) - INJECTION_MS) / 1000),
       settled: Number(killedRow.settled),
       refunded: Number(killedRow.refundDue),
+      spentInWindow: Math.round(Number(rule?.[1] ?? 0) * 1e6),
+      windowSec: Number(rule?.[2] ?? 60),
+      limit: Math.round(Number(rule?.[3] ?? 0) * 1e6),
     },
+    anchor: full
+      ? { batchId: full.id, vouchers: full.voucherCount, root: full.merkleRoot, tx: full.txSignature ?? '' }
+      : null,
     payee: {
       agentId: challenge.agentId ?? '',
       vendorId: cdata.vendorId,

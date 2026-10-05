@@ -25,8 +25,14 @@ export default function Image() {
         color: '#ffffff',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 30, fontWeight: 600 }}>
-        <div style={{ width: 14, height: 14, borderRadius: 7, background: '#ff8975' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 34, fontWeight: 600 }}>
+        <svg viewBox="239 196 546 636" width={34} height={40} aria-hidden>
+          <rect x={239} y={196.5} width={546} height={110} rx={55} fill="#ffffff" />
+          <rect x={457} y={358.5} width={110} height={77} rx={32} fill="#ffffff" />
+          <rect x={457} y={469.5} width={110} height={77} rx={32} fill="#ffffff" />
+          <rect x={457} y={580.5} width={110} height={77} rx={32} fill="#ffffff" />
+          <circle cx={512} cy={776.5} r={55.5} fill="#ff8975" />
+        </svg>
         Tabula
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

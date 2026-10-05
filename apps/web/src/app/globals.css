@@ -137,6 +137,41 @@ p {
   animation: marquee 45s linear infinite;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+/* the film's scrubber: the chapter bars underneath are the track, so only the thumb shows */
+.film-range {
+  appearance: none;
+  background: transparent;
+}
+.film-range::-webkit-slider-runnable-track {
+  height: 40px;
+  background: transparent;
+}
+.film-range::-moz-range-track {
+  height: 40px;
+  background: transparent;
+}
+.film-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 12px;
+  border-radius: 50%;
+  background: var(--color-paper);
+  box-shadow: 0 0 0 4px rgba(255, 137, 117, 0.35);
+}
+.film-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-paper);
+  box-shadow: 0 0 0 4px rgba(255, 137, 117, 0.35);
+}
+
 :focus-visible {
   outline: 2px solid var(--color-wax);
   outline-offset: 2px;

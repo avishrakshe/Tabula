@@ -8,14 +8,12 @@
  * Needs the web app on http://localhost:3000 (`pnpm --filter @tabula/web build && … start`).
  * Override the browser with TABULA_BROWSER and the app with TABULA_WEB_URL.
  */
-import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { launch, sleep } from './lib/cdp.js'
 
 const WEB = process.env.TABULA_WEB_URL ?? 'http://localhost:3000'
 const OUT = join(import.meta.dirname, '..', 'apps', 'web', 'public', 'shots')
-const PORT = 9333
 const WIDTH = 1440
 const HEIGHT = 900
 
@@ -51,86 +49,6 @@ const SHOTS: Shot[] = [
   },
 ]
 
-function browserPath(): string {
-  const candidates = [
-    process.env.TABULA_BROWSER,
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ]
-  const found = candidates.find((p) => p && existsSync(p))
-  if (!found) throw new Error('no Chromium-based browser found; set TABULA_BROWSER')
-  return found
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-class Cdp {
-  #ws: WebSocket
-  #id = 0
-  #pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
-
-  private constructor(ws: WebSocket) {
-    this.#ws = ws
-    ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(String(ev.data)) as {
-        id?: number
-        result?: unknown
-        error?: { message: string }
-      }
-      if (msg.id === undefined) return
-      const p = this.#pending.get(msg.id)
-      if (!p) return
-      this.#pending.delete(msg.id)
-      if (msg.error) p.reject(new Error(msg.error.message))
-      else p.resolve(msg.result)
-    })
-  }
-
-  static async connect(url: string): Promise<Cdp> {
-    const ws = new WebSocket(url)
-    await new Promise<void>((resolve, reject) => {
-      ws.addEventListener('open', () => resolve(), { once: true })
-      ws.addEventListener('error', () => reject(new Error(`could not connect to ${url}`)), { once: true })
-    })
-    return new Cdp(ws)
-  }
-
-  send<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const id = ++this.#id
-    this.#ws.send(JSON.stringify({ id, method, params }))
-    return new Promise<T>((resolve, reject) => this.#pending.set(id, { resolve: resolve as never, reject }))
-  }
-
-  async eval<T>(expression: string): Promise<T> {
-    const r = await this.send<{ result: { value: T }; exceptionDetails?: { text: string } }>(
-      'Runtime.evaluate',
-      {
-        expression,
-        awaitPromise: true,
-        returnByValue: true,
-      },
-    )
-    if (r.exceptionDetails) throw new Error(r.exceptionDetails.text)
-    return r.result.value
-  }
-
-  async until(expression: string, what: string, timeoutMs = 20_000) {
-    const deadline = Date.now() + timeoutMs
-    while (Date.now() < deadline) {
-      if (await this.eval<boolean>(expression).catch(() => false)) return
-      await sleep(200)
-    }
-    throw new Error(`timed out waiting for ${what}`)
-  }
-
-  close() {
-    this.#ws.close()
-  }
-}
-
 // union of the cards titled `titles` (or the first card holding a table), in page coordinates
 const rectExpr = (titles: string[]) => `(() => {
   const cards = ${JSON.stringify(titles)}.map((title) => title === '__table__'
@@ -148,32 +66,8 @@ async function main() {
   if (!res?.ok) throw new Error(`no dashboard with a recorded run at ${WEB}`)
   mkdirSync(OUT, { recursive: true })
 
-  const profile = mkdtempSync(join(tmpdir(), 'tabula-shots-'))
-  const browser = spawn(
-    browserPath(),
-    [
-      '--headless=new',
-      `--remote-debugging-port=${PORT}`,
-      `--user-data-dir=${profile}`,
-      '--hide-scrollbars',
-      '--no-first-run',
-      '--no-default-browser-check',
-      `--window-size=${WIDTH},${HEIGHT}`,
-      'about:blank',
-    ],
-    { stdio: 'ignore' },
-  )
+  const { cdp, stop } = await launch({ width: WIDTH, height: HEIGHT })
   try {
-    let target: { webSocketDebuggerUrl: string } | null = null
-    for (let i = 0; i < 50 && !target; i++) {
-      await sleep(200)
-      target = await fetch(`http://127.0.0.1:${PORT}/json/new?about:blank`, { method: 'PUT' })
-        .then((r) => (r.ok ? (r.json() as Promise<{ webSocketDebuggerUrl: string }>) : null))
-        .catch(() => null)
-    }
-    if (!target) throw new Error('the headless browser did not start')
-    const cdp = await Cdp.connect(target.webSocketDebuggerUrl)
-    await cdp.send('Page.enable')
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: WIDTH,
       height: HEIGHT,
@@ -220,9 +114,7 @@ async function main() {
     }
     cdp.close()
   } finally {
-    browser.kill()
-    await sleep(500)
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+    await stop()
   }
 }
 

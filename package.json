@@ -16,7 +16,9 @@
     "lint:fix": "biome check --write .",
     "spike": "tsx scripts/spike-channel.ts",
     "setup": "tsx scripts/setup-devnet.ts",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "film:render": "tsx scripts/render-film.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

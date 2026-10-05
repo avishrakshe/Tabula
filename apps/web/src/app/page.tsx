@@ -1,12 +1,16 @@
-import { ArrowRight, Check } from 'lucide-react'
+import { ArrowRight, Check, Play } from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { FilmPlayer } from '@/components/film/FilmPlayer'
 import { Faq } from '@/components/site/Faq'
 import { Frame } from '@/components/site/Frame'
 import { HeroStage } from '@/components/site/HeroStage'
+import { Wordmark } from '@/components/site/Logo'
 import { GITHUB_URL, REPLAY_URL } from '@/components/site/links'
 import { Nav } from '@/components/site/Nav'
 import { Reveal } from '@/components/site/Reveal'
+import { WaitlistForm } from '@/components/site/Waitlist'
+import { filmFacts } from '@/lib/film-facts'
 import { shortAddr, usd } from '@/lib/format'
 import { runFacts } from '@/lib/run-facts'
 import feedShot from '../../public/shots/feed.jpg'
@@ -143,8 +147,8 @@ export default function Home() {
               stops a runaway agent mid-stream, and anchors a receipt for every dollar onchain.
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <PillLink href={REPLAY_URL} variant="ghost">
-                Watch the demo
+              <PillLink href="#demo" variant="ghost">
+                <Play aria-hidden className="size-3.5" fill="currentColor" /> Watch the film
               </PillLink>
               <PillLink href="/app">
                 Open the dashboard <ArrowRight aria-hidden className="size-4" />
@@ -461,7 +465,9 @@ export default function Home() {
                     ))}
                   </ul>
                   <div className="relative mt-auto pt-10">
-                    <PillLink href={`${GITHUB_URL}/issues`}>Talk to us</PillLink>
+                    <PillLink href="#waitlist">
+                      Join the waitlist <ArrowRight aria-hidden className="size-4" />
+                    </PillLink>
                   </div>
                 </article>
               </Reveal>
@@ -507,49 +513,88 @@ export default function Home() {
           </Container>
         </section>
 
-        {/* ---- CTA band ------------------------------------------------------------------ */}
-        <section className="px-4 pb-24 md:px-6">
-          <Reveal className="relative mx-auto max-w-[1200px] overflow-hidden rounded-[28px] border border-white/10 bg-night px-6 py-20 text-center md:py-24">
+        {/* ---- the film ------------------------------------------------------------------ */}
+        <section id="demo" className="scroll-mt-20 border-t border-white/8 py-24 md:py-32">
+          <Container>
+            <SectionIntro title="Tabula in 81 seconds.">
+              A motion-graphic tour of what Tabula does, from the first voucher to the last receipt. The
+              blocked voucher, the refund, the receipts and the scorecards are the real figures from the
+              recorded run on Solana {f.cluster}.
+            </SectionIntro>
+            <Reveal className="mt-14">
+              <FilmPlayer facts={filmFacts()} />
+            </Reveal>
+            <p className="mt-8 text-center text-[15px] text-gray-1">
+              Prefer the real thing? The whole run, {Math.floor(f.durationSec / 60)} min {f.durationSec % 60}{' '}
+              s, {f.signed} vouchers signed and {f.blocked} blocked, replays in the dashboard.{' '}
+              <Link
+                href={REPLAY_URL}
+                className="whitespace-nowrap text-paper underline decoration-wax underline-offset-4"
+              >
+                Watch the recorded run
+              </Link>
+            </p>
+          </Container>
+        </section>
+
+        {/* ---- waitlist ------------------------------------------------------------------ */}
+        <section id="waitlist" className="scroll-mt-20 px-4 pb-24 md:px-6 md:pb-32">
+          <div className="relative mx-auto max-w-[1200px] overflow-hidden rounded-[28px] border border-white/10 bg-night px-5 py-14 md:px-14 md:py-20">
             <div
               aria-hidden
-              className="pointer-events-none absolute -top-48 left-1/2 h-[480px] w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(255,137,117,0.25),transparent)]"
+              className="pointer-events-none absolute -top-56 -left-40 h-[560px] w-[760px] rounded-full bg-[radial-gradient(closest-side,rgba(255,137,117,0.22),transparent)]"
             />
-            <div className="relative">
-              <h2 className="mx-auto max-w-[720px] text-[34px] leading-[1.15] font-medium tracking-[-0.02em] md:text-h2">
-                Watch a rogue agent get stopped.
-              </h2>
-              <p className="mx-auto mt-5 max-w-[52ch] text-body-lg text-gray-1">
-                The whole run, {Math.floor(f.durationSec / 60)} min {f.durationSec % 60} s: {f.signed}{' '}
-                vouchers signed, {f.blocked} blocked, every channel reconciled.
-              </p>
-              <div className="mt-9 flex flex-wrap justify-center gap-3">
-                <PillLink href={REPLAY_URL}>
-                  Watch the recorded run <ArrowRight aria-hidden className="size-4" />
-                </PillLink>
-                <PillLink href={GITHUB_URL} variant="ghost">
-                  Read the code
-                </PillLink>
-              </div>
+            <div className="relative grid items-center gap-12 md:grid-cols-[0.85fr_1.15fr] md:gap-14">
+              <Reveal>
+                <p className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-4 py-1.5 text-sm text-gray-1">
+                  <span className="size-1.5 rounded-full bg-wax" aria-hidden />
+                  Private beta · live on Solana {f.cluster}
+                </p>
+                <h2 className="mt-6 text-[38px] leading-[1.1] font-medium tracking-[-0.02em] md:text-h2">
+                  Get early access.
+                </h2>
+                <p className="mt-5 max-w-[46ch] text-body-lg text-gray-1">
+                  We’re bringing on a small group of teams whose agents pay per call. Leave your email and
+                  we’ll reach out when there’s a spot.
+                </p>
+                <ul className="mt-8 space-y-3 text-[15px]">
+                  {[
+                    'Free for up to 3 agents',
+                    'Early teams shape what we build next',
+                    'Design partners move to mainnet first',
+                  ].map((x) => (
+                    <li key={x} className="flex gap-2.5">
+                      <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-wax" />
+                      {x}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <WaitlistForm />
+              </Reveal>
             </div>
-          </Reveal>
+          </div>
         </section>
       </main>
 
       <footer className="border-t border-white/8">
         <Container className="flex flex-col gap-8 py-12 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-h3 font-semibold tracking-tight">Tabula</p>
-            <p className="mt-2 text-sm text-gray-1">Every agent payment, accounted for. MIT licensed.</p>
+            <Link href="/" className="text-h3" aria-label="Tabula home">
+              <Wordmark markClassName="h-8 w-auto" />
+            </Link>
+            <p className="mt-3 text-sm text-gray-1">Every agent payment, accounted for. MIT licensed.</p>
           </div>
           <ul className="flex flex-wrap gap-x-8 gap-y-3 text-[15px] text-gray-1">
             <li>
-              <a href={GITHUB_URL} className="hover:text-paper">
-                GitHub
-              </a>
+              <Link href="/film" className="hover:text-paper">
+                Film
+              </Link>
             </li>
             <li>
-              <a href={`${GITHUB_URL}#readme`} className="hover:text-paper">
-                Docs
+              <a href="#waitlist" className="hover:text-paper">
+                Waitlist
               </a>
             </li>
             <li>
@@ -561,6 +606,16 @@ export default function Home() {
               <Link href="/app" className="hover:text-paper">
                 Dashboard
               </Link>
+            </li>
+            <li>
+              <a href={`${GITHUB_URL}#readme`} className="hover:text-paper">
+                Docs
+              </a>
+            </li>
+            <li>
+              <a href={GITHUB_URL} className="hover:text-paper">
+                GitHub
+              </a>
             </li>
           </ul>
         </Container>
