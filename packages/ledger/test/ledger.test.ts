@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { canonicalize, canonicalVoucher } from '../src/canonical.js'
@@ -285,6 +285,17 @@ describe('openLedger (Postgres via PGlite + drizzle)', { timeout: 30_000 }, () =
       .values({ ...row, idempotencyKey: 'big', cumulativeAmount: 9_000_000_000_000 })
     const big = await first(ledger.db.select().from(vouchers).where(eq(vouchers.idempotencyKey, 'big')))
     expect(big?.cumulativeAmount).toBe(9_000_000_000_000)
+    await ledger.close()
+  })
+
+  it('has row level security on every table (Supabase exposes the public schema)', async () => {
+    const ledger = await openLedger(':memory:')
+    const tables = (await ledger.db.execute(
+      sql`select relname, relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'public' and c.relkind = 'r'`,
+    )) as unknown as { rows: { relname: string; relrowsecurity: boolean }[] }
+    expect(tables.rows.length).toBeGreaterThanOrEqual(13)
+    expect(tables.rows.filter((t) => !t.relrowsecurity).map((t) => t.relname)).toEqual([])
     await ledger.close()
   })
 

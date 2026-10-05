@@ -241,6 +241,24 @@ export const settings = pgTable('settings', {
   updatedAt: millis('updated_at').notNull(),
 })
 
+/** Early-access sign-ups from the landing page, one row per email (stored trimmed and lowercased). */
+export const waitlist = pgTable(
+  'waitlist',
+  {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull(),
+    company: text('company'),
+    /** What they want Tabula for (one of the form's choices). */
+    interest: text('interest'),
+    /** How many agents they run (one of the form's buckets). */
+    fleet: text('fleet'),
+    /** sha256 of the requester's IP (never the IP itself). */
+    requester: text('requester'),
+    createdAt: millis('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('waitlist_email_idx').on(t.email)],
+)
+
 export type AgentRow = typeof agents.$inferSelect
 export type VendorRow = typeof vendors.$inferSelect
 export type PolicyRow = typeof policies.$inferSelect
