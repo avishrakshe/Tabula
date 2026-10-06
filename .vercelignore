@@ -22,3 +22,8 @@ apps/web/public/gpu/
 
 # reading material, not part of the build
 .vendor/
+
+# local agent tooling (e.g. the Supabase skill the Vercel CLI installs)
+/.agents/
+/.claude/
+/skills-lock.json

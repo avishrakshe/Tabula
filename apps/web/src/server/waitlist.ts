@@ -10,10 +10,14 @@ export class WaitlistUnavailable extends Error {}
 
 let db: Promise<LedgerDb> | null = null
 
-/** Supabase gets its own small pool; PGlite holds its directory exclusively, so share the gateway's. */
+/**
+ * Supabase gets its own small pool: DATABASE_URL, else POSTGRES_URL (the transaction pooler the Supabase
+ * Marketplace integration sets on the Vercel project). PGlite holds its directory exclusively, so a local
+ * rehearsal shares the gateway's.
+ */
 export function waitlistDb(): Promise<LedgerDb> {
   db ??= (async () => {
-    const url = process.env.DATABASE_URL
+    const url = process.env.DATABASE_URL || process.env.POSTGRES_URL
     if (url && /^postgres(ql)?:\/\//.test(url)) return (await openLedger(url, { max: 2 })).db
     if (process.env.TABULA_DB_PATH) return (await gateway()).gw.ledger.db
     throw new WaitlistUnavailable('no database configured for sign-ups')
