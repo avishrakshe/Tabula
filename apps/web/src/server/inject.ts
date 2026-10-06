@@ -1,5 +1,6 @@
 import { after } from 'next/server'
 import { gateway } from './gateway'
+import { json } from './request'
 
 /**
  * Dashboard reads that anyone may make on the hosted demo (read-only, and nothing secret: API-key hashes
@@ -17,7 +18,15 @@ const HOP_BY_HOP = new Set(['connection', 'keep-alive', 'transfer-encoding', 'co
 
 /** Serves one request with the gateway's Fastify app (same routes, auth and validation as `pnpm demo`). */
 export async function injectGateway(req: Request, path: string): Promise<Response> {
-  const { gw, app } = await gateway()
+  let runtime: Awaited<ReturnType<typeof gateway>>
+  try {
+    runtime = await gateway()
+  } catch (err) {
+    // no ledger here (the hosted site before its live demo is set up), or it is paused: say so, don't crash
+    console.error('[gateway]', err)
+    return json({ error: 'unavailable', message: 'the live ledger is offline' }, 503)
+  }
+  const { gw, app } = runtime
   const url = new URL(req.url)
   const headers: Record<string, string> = {}
   req.headers.forEach((v, k) => {
