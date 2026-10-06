@@ -159,16 +159,16 @@ export async function fetchFeed(opts: { full: boolean; after: FeedCursor }): Pro
   if (opts.after.e > overlap) q.set('e', String(opts.after.e - overlap))
   const res = await fetch(`/api/demo/feed?${q}`, { cache: 'no-store', signal: AbortSignal.timeout(30_000) })
   if (!res.ok) throw new Error(`the live ledger did not answer (${res.status})`)
-  const {
-    run,
-    events,
-    full: _full,
-    ...views
-  } = (await res.json()) as Partial<DashboardData> & {
+  const body = (await res.json()) as Partial<DashboardData> & {
     run: DemoRun | null
     events?: AuditRow[]
     full: boolean
+    /** false when the site has no live ledger (the dashboard then shows the recorded run) */
+    live?: boolean
+    message?: string
   }
+  if (body.live === false) throw new Error(body.message ?? 'the live ledger is offline')
+  const { run, events, full: _full, live: _live, message: _message, ...views } = body
   const newest = (rows: { id: number }[] | undefined, prev: number) =>
     (rows ?? []).reduce((m, r) => Math.max(m, r.id), prev)
   return {

@@ -12,7 +12,12 @@ export async function POST(req: Request) {
   const id = Number(body.id)
   if (!Number.isSafeInteger(id) || id <= 0)
     return json({ error: 'bad_request', message: 'id is required' }, 400)
-  const { gw } = await gateway()
+  const runtime = await gateway().catch((err: Error) => {
+    console.error('[demo/tick]', err)
+    return null
+  })
+  if (!runtime) return json({ error: 'unavailable', message: 'the live ledger is offline' }, 503)
+  const { gw } = runtime
   const run = await tick(gw, id)
   after(() => gw.sessions.drain()) // a voucher that tripped a kill keeps closing the channel
   return run ? json({ run }) : json({ error: 'not_found' }, 404)

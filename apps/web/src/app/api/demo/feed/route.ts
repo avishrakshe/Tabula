@@ -39,7 +39,15 @@ export async function GET(req: Request) {
   const full = q.get('full') === '1'
   const v = cursor(q, 'v')
   const e = cursor(q, 'e')
-  const { gw, app } = await gateway()
+  let runtime: Awaited<ReturnType<typeof gateway>>
+  try {
+    runtime = await gateway()
+  } catch (err) {
+    // no live ledger (not set up yet, or paused): answered like /api/demo/status, and the dashboard replays
+    console.error('[demo/feed]', err)
+    return json({ live: false, message: 'the live ledger is offline' })
+  }
+  const { gw, app } = runtime
   const paths: Record<string, string> = {
     ...FAST,
     ...(full ? SLOW : {}),

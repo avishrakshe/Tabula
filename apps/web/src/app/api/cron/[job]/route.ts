@@ -24,7 +24,12 @@ function authorized(req: Request): boolean {
 export async function POST(req: Request, ctx: { params: Promise<{ job: string }> }) {
   if (!authorized(req)) return json({ error: 'unauthorized' }, 401)
   const { job } = await ctx.params
-  const { gw } = await gateway()
+  const runtime = await gateway().catch((err: Error) => {
+    console.error('[cron]', err)
+    return null
+  })
+  if (!runtime) return json({ error: 'unavailable', message: 'the live ledger is offline' }, 503)
+  const { gw } = runtime
   after(() => gw.sessions.drain())
   switch (job) {
     case 'anchor':
