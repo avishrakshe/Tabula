@@ -22,7 +22,7 @@ Record from the hosted site, or locally with `pnpm --filter @tabula/web build &&
 | 0:50–1:25 | Agent rogue-01 (`/app/agents/rogue-01`, `t=45`, 1×): the trailing-window chart climbs to the limit, then the blocked voucher and the kill timeline | "rogue-01 reads an injected ticket and calls as fast as it can. Voucher 49 would cross the limit, so it's refused unsigned. The agent is stopped, the channel closes at the last signed voucher, and $0.565 goes back to the treasury." |
 | 1:25–1:40 | Channels & float (`t=125`): the idle channel closed | "The float manager closes a channel nobody is using and reclaims its escrow." |
 | 1:40–2:05 | Ledger (`t=168`): click Verify on a batch; MATCHED | "Every 40 vouchers, Tabula anchors a Merkle root onchain. Verify recomputes it here, in your browser." |
-| 2:05–2:20 | Reconciliation (`t=168`): 4/4 MATCHED; then Vendors scorecards | "Every channel reconciles against what settled. And the scorecards show inference-b wasted 9% of its paid calls; inference-a does the same task 27% cheaper." |
+| 2:05–2:20 | Reconciliation (`t=168`): 4/4 MATCHED; then Vendors scorecards | "Every channel reconciles against what settled. And the scorecards show inference-b wasted 9% of its paid calls; inference-a does the same task 26% cheaper." |
 | 2:20–3:00 | Landing page: three cards, how it works, pricing | Who it's for, the business model (per agent + basis points on managed spend), the roadmap, and one line on why now (payment channels launched Sept 3, 2026). |
 
 Keep claims to what the run shows: every number above is in the recording.

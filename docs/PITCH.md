@@ -3,8 +3,8 @@
 **Every agent payment, accounted for.** Spend control and treasury for AI agents that pay through Solana
 payment channels.
 
-> Numbers marked *measured* come from the recorded demo run on the Solana Payment Sandbox
-> (`apps/web/public/replay/demo.json`, 2026-10-04). Numbers marked *assumption* are inputs to an example and
+> Numbers marked *measured* come from the recorded demo run on Solana devnet, the one the hosted dashboard
+> replays (`apps/web/public/replay/demo.json`, 2026-10-04). Numbers marked *assumption* are inputs to an example and
 > should be replaced with real ones. Sections marked **TO FILL** need facts only the founders have.
 
 ## Problem
@@ -53,12 +53,12 @@ That moves real spending to a place nobody watches:
 
 | | What happens | Measured in the run |
 |---|---|---|
-| Gate every voucher | Policy is checked before each signature; the guarded signer holds the keys | 244 vouchers signed, 1 blocked |
-| Stop a runaway agent | The voucher that crosses the limit is refused unsigned, then the agent is stopped, its channel closed and the refund swept to the vault | voucher #49 blocked 13 s after the injection; $0.06 settled, $0.565 back to the vault |
+| Gate every voucher | Policy is checked before each signature; the guarded signer holds the keys | 214 vouchers signed, 1 blocked |
+| Stop a runaway agent | The voucher that crosses the limit is refused unsigned, then the agent is stopped, its channel closed and the refund swept to the vault | voucher #49 blocked 19 s after the injection; $0.06 settled, $0.565 back to the vault |
 | Block swapped payees | The 402 challenge is checked against the registry and the open is simulated | `PAYEE_MISMATCH`, nothing signed |
 | Sweep idle escrow | The float manager closes channels nobody is using | $0.61625 reclaimed |
-| Prove every dollar | Merkle roots are anchored with the Memo program, and each channel is reconciled against settlement | 7/7 batches verified, 4/4 channels `MATCHED`, vault down exactly the $0.25775 vendors settled |
-| Vendor scorecards | Waste and cost per completed task | inference-b 9.1% waste; inference-a does the same task 27% cheaper |
+| Prove every dollar | Merkle roots are anchored with the Memo program, and each channel is reconciled against settlement | 6/6 batches verified, 4/4 channels `MATCHED`, vault down exactly the $0.22775 vendors settled |
+| Vendor scorecards | Waste and cost per completed task | inference-b 9.1% waste; inference-a does the same task 26% cheaper |
 
 ## Competition
 
@@ -94,9 +94,9 @@ everything else is an *assumption* to replace.
 | Managed spend | 20 agents × $1,500/agent/month (*assumption*) | $30,000 spend |
 | Losses prevented | 1 runaway incident per quarter (*assumption*); uncapped loss $2,000 per incident (*assumption*) vs. stopped at the velocity limit (the run stopped at $0.06) | ≈ $665 |
 | Waste eliminated | 5% of spend paid for failed calls (*assumption*; the run *measured* 9.1% at one vendor), half of it avoided by routing and refusals | ≈ $750 |
-| Vendor switching | 20% of spend movable to a cheaper vendor for the same task (*assumption*), 27% cheaper (*measured*) | ≈ $1,620 |
+| Vendor switching | 20% of spend movable to a cheaper vendor for the same task (*assumption*), 26% cheaper (*measured*) | ≈ $1,560 |
 | Yield on idle float | $20,000 average idle treasury float (*assumption*) at 4% a year (*assumption*); planned feature | ≈ $67 |
-| **Total** | | **≈ $3,100 a month** (≈ 10% of managed spend) |
+| **Total** | | **≈ $3,040 a month** (≈ 10% of managed spend) |
 
 The biggest lines are measurable from day one: Tabula's scorecards compute waste and cheaper options from the
 team's own paid calls.
@@ -128,5 +128,7 @@ spend surprised you, the invoice nobody could explain, or the escrow that sat id
 ## Links
 
 - Code: <https://github.com/avishrakshe/Tabula>
-- Recorded run: the dashboard's replay (`/app?replay`) on the hosted site. **TO FILL:** the Vercel URL.
+- Site: <https://tabula-agents.vercel.app>
+- Recorded run: <https://tabula-agents.vercel.app/app> (the dashboard replaying the devnet run)
+- The film (81 s motion graphic): <https://tabula-agents.vercel.app/film>
 - Demo video: **TO FILL:** the link, once recorded (shot list in [`VIDEO.md`](VIDEO.md)).

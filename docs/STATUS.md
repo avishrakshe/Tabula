@@ -1,6 +1,6 @@
 # STATUS
 
-_Last updated 2026-10-05._
+_Last updated 2026-10-10._
 
 | Milestone | State | Tag |
 |---|---|---|
@@ -32,7 +32,7 @@ _Last updated 2026-10-05._
   - limits are never exceeded;
   - every block is the first violating voucher.
 
-### `packages/ledger`: Drizzle on `node:sqlite` (no native deps), 21 tests
+### `packages/ledger`: Drizzle on Postgres (Supabase hosted, PGlite locally; no native deps), 23 tests
 
 - Schema for agents, vendors, policies, tasks, channels, vouchers (with idempotency keys), challenge checks,
   batches and events.
@@ -224,6 +224,21 @@ _Last updated 2026-10-05._
   - Rehearsing with `.env.devnet` under `next start` needs an absolute `TABULA_TREASURY_FILE` (the server
     runs from `apps/web`).
 
+### Submission check (2026-10-10)
+
+- **Local:** `pnpm lint` clean, `pnpm typecheck` clean, `pnpm test` 126/126, `next build` OK. Sandbox
+  integration 19/19: one run had 18/19 (the sandbox answered a `transferRecurring` send with a JSON-RPC error
+  that had no `data`, which kit's error parser can't read); re-running `kill-float.test.ts` passed 5/5.
+- **Production** (headless Edge, 1440px and 390px): `/`, every `/app` page and `/film` render, with no
+  horizontal overflow; the dashboard replays the devnet run. Every `/app` page logged one failed
+  `/api/demo/feed` (500): production predates 005d854, which answers `200 { live: false }` there. The fix is
+  a redeploy of `main` (the project deploys with the CLI, not from GitHub).
+- **Hosted backend:** the Supabase database has all 6 migrations and the waitlist is taking sign-ups. The
+  gateway has no `DATABASE_URL`, so the hosted dashboard is replay-only by design.
+- **Docs:** README, PITCH and VIDEO now quote the devnet run the site replays (214 signed, voucher #49
+  blocked 19 s after the injection, 6/6 batches, vault down $0.22775, 26% cheaper). They had quoted the
+  earlier sandbox run.
+
 ## What is mocked or simplified
 
 - **Funding.** With `pnpm setup` the money comes from a real Squads vault through real onchain allowances
@@ -283,7 +298,7 @@ _Last updated 2026-10-05._
      mocked), `docs/PITCH.md` and `docs/VIDEO.md` (shot list). A fresh clone of `main` installs with
      `--frozen-lockfile` and builds the site.
    - **Waiting on the founders:**
-     - the Vercel deploy (needs their account; settings in the README);
+     - a production redeploy of `main` (see the submission check above);
      - recording the video;
      - the PITCH fill-ins: traction, founder story, prices, links;
      - then linking the video and the Colosseum submission from the site footer.
