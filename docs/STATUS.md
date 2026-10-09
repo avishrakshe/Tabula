@@ -231,8 +231,12 @@ _Last updated 2026-10-10._
   that had no `data`, which kit's error parser can't read); re-running `kill-float.test.ts` passed 5/5.
 - **Production** (headless Edge, 1440px and 390px): `/`, every `/app` page and `/film` render, with no
   horizontal overflow; the dashboard replays the devnet run. Every `/app` page logged one failed
-  `/api/demo/feed` (500): production predates 005d854, which answers `200 { live: false }` there. The fix is
-  a redeploy of `main` (the project deploys with the CLI, not from GitHub).
+  `/api/demo/feed` (500): production predated 005d854, which answers `200 { live: false }` there.
+  **Redeployed** from `main` with the CLI (preview checked, then promoted): the same pages at 1440px and
+  390px now log no errors at all.
+- **Demo video** (2:58, 1080p, AI voice-over, burned-in captions): kept out of git in `data/video/`, with
+  its narration script. It cuts the film's problem chapters, the landing page, the dashboard replaying the
+  devnet run (driven by a scripted cursor) and two title cards together.
 - **Hosted backend:** the Supabase database has all 6 migrations and the waitlist is taking sign-ups. The
   gateway has no `DATABASE_URL`, so the hosted dashboard is replay-only by design.
 - **Docs:** README, PITCH and VIDEO now quote the devnet run the site replays (214 signed, voucher #49
@@ -298,7 +302,6 @@ _Last updated 2026-10-10._
      mocked), `docs/PITCH.md` and `docs/VIDEO.md` (shot list). A fresh clone of `main` installs with
      `--frozen-lockfile` and builds the site.
    - **Waiting on the founders:**
-     - a production redeploy of `main` (see the submission check above);
-     - recording the video;
+     - uploading the demo video (`data/video/tabula-demo.mp4`) and linking it;
      - the PITCH fill-ins: traction, founder story, prices, links;
      - then linking the video and the Colosseum submission from the site footer.
